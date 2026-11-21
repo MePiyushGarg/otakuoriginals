@@ -532,6 +532,11 @@
   function setCategory(cat) {
     state.category = cat;
     $$(".pill").forEach((p) => p.classList.toggle("active", p.dataset.cat === cat));
+    // keep the selected pill centred in the swipeable row
+    const box = $("#pills"), act = $(".pill.active");
+    if (box && act && box.scrollWidth > box.clientWidth) {
+      box.scrollTo({ left: act.offsetLeft - (box.clientWidth - act.offsetWidth) / 2, behavior: "smooth" });
+    }
     renderProducts();
   }
 
