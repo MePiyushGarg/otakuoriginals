@@ -25,6 +25,17 @@
 </head>
 <body>
 
+  <!-- Infinite looping manga background (decorative) -->
+  <div class="bg-loop" aria-hidden="true">
+    <span class="dots"><i></i></span>
+    <span class="rays"></span>
+    <span class="float f1"></span><span class="float f2"></span><span class="float f3"></span><span class="float f4"></span>
+    <span class="sfx s1">ドン</span><span class="sfx s2">ゴゴゴ</span><span class="sfx s3">ズバッ</span>
+  </div>
+
+  <!-- Offers ticker (filled from OFFERS in products.js) -->
+  <div class="ticker" aria-label="Current offers"><div class="ticker-track" id="tickerTrack"></div></div>
+
   <!-- ================= NAVBAR ================= -->
   <header class="navbar" id="navbar">
     <div class="container nav-inner">
@@ -56,6 +67,7 @@
       <div class="hero-lines" aria-hidden="true">
         <span class="line l1"></span><span class="line l2"></span><span class="line l3"></span>
         <span class="panel p1"></span><span class="panel p2"></span>
+        <span class="sfx-hero">ドン!</span>
       </div>
       <div class="container hero-inner">
         <p class="eyebrow reveal-text"><span>India's Anime Merch Store</span></p>
@@ -67,6 +79,9 @@
         <a href="#shop" class="btn btn-primary fade-in delay">Explore Collection →</a>
       </div>
     </section>
+
+    <!-- Scrolling manga SFX band -->
+    <div class="band" aria-hidden="true"><div class="band-track" id="bandTrack"></div></div>
 
     <!-- ================= TRUST STRIP ================= -->
     <section class="trust">
@@ -88,6 +103,15 @@
           <div><strong>WhatsApp Support</strong><span>Talk to a real person</span></div>
         </div>
       </div>
+    </section>
+
+    <!-- ================= AUTO OFFERS ================= -->
+    <section class="offers container">
+      <div class="section-head reveal">
+        <h2>Auto Offers</h2>
+        <p class="muted">Applied automatically in your cart</p>
+      </div>
+      <div class="offer-grid" id="offerGrid"></div>
     </section>
 
     <!-- ================= SHOP ================= -->
@@ -163,9 +187,17 @@
       <h3>Your Cart</h3>
       <button class="close-btn" data-close aria-label="Close cart">✕</button>
     </div>
-    <div class="drawer-body" id="cartItems"></div>
+    <div class="drawer-body">
+      <div class="progress" id="offerProgress" hidden></div>
+      <div id="cartItems"></div>
+      <div class="recs" id="cartRecs"></div>
+    </div>
     <div class="drawer-foot" id="cartFoot">
       <div class="row"><span>Subtotal</span><strong id="cartSubtotal">₹0</strong></div>
+      <div class="row disc" id="discRow" hidden><span>Offer discount</span><strong id="cartDiscount"></strong></div>
+      <div class="row"><span>Delivery</span><strong id="shipVal">—</strong></div>
+      <div class="gift-line" id="giftRow" hidden></div>
+      <div class="row total"><span>Total</span><strong id="cartTotal">₹0</strong></div>
       <p class="muted small" id="shippingNote"></p>
       <button class="btn btn-primary block" id="checkoutBtn">Proceed to Order</button>
     </div>
@@ -188,6 +220,8 @@
       <div class="notice" role="note">
         <strong>Important Note:</strong> No payment is required right now. Payment will not be processed until our admin verifies stock availability and takes your approval to pack the order.
       </div>
+
+      <div class="co-summary" id="coSummary"></div>
 
       <form id="checkoutForm" novalidate>
         <label>Full Name *

@@ -17,6 +17,34 @@ const STORE_CONFIG = {
 };
 
 /* =====================================================================
+   AUTO OFFERS  (applied automatically in the cart — edit freely)
+   - "min" is the cart subtotal needed (offer applies at that amount or more).
+   - discount: flat ₹ off | freeShipping: true | gift: items added free.
+   - If several tiers are met: biggest discount wins, free delivery applies
+     if any met tier has it, and the highest tier's gift is given.
+   - icon/short are the tiny labels shown on the cart progress bar.
+   ===================================================================== */
+const OFFERS = [
+  { min: 1499, icon: "₹", short: "₹100", title: "₹100 OFF",
+    desc: "Flat ₹100 off on orders of ₹1,499 and above.", discount: 100 },
+  { min: 2000, icon: "🎁", short: "Gift", title: "Free Gift",
+    desc: "1 surprise keychain + 5 stickers free on orders of ₹2,000 and above.",
+    gift: { mystery: 0, keychains: 1, stickers: 5 } },
+  { min: 3000, icon: "🚚", short: "Delivery", title: "Free Delivery",
+    desc: "Free delivery on orders of ₹3,000 and above.", freeShipping: true },
+  { min: 5000, icon: "★", short: "Mega", title: "Mega Reward",
+    desc: "Free delivery + 1 mystery gift + 1 keychain + 10 stickers on orders of ₹5,000 and above.",
+    freeShipping: true, gift: { mystery: 1, keychains: 1, stickers: 10 } }
+];
+
+/* Free gifts are picked at random from these lists when an order is placed.
+   Add or rename items to match what you actually have in stock. */
+const GIFT_POOL = {
+  keychains: ["Chibi Ninja Keychain", "Pirate Captain Keychain", "Sword Spirit Keychain", "Cyber Fox Keychain", "Mecha Pilot Keychain"],
+  mystery: ["Anime Mini Poster (A4)", "Acrylic Mini Standee", "Enamel Pin", "Anime Wristband", "Mini Manga Notebook"]
+};
+
+/* =====================================================================
    PRODUCTS
    To add a product: copy ONE block below, paste it at the end of the
    array, give it a NEW unique id, and edit the fields.

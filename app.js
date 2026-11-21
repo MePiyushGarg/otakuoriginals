@@ -113,9 +113,11 @@
     const p = PRODUCTS.find((x) => x.id === id);
     if (!p || !p.inStock) return;
     const line = state.cart.find((i) => i.id === id);
+    const before = unlockedCount();
     if (line) line.qty += qty; else state.cart.push({ id, qty });
     saveCart(); renderCart();
-    toast(`Added “${p.name}” to cart`);
+    const after = unlockedCount();
+    toast(after > before ? `🎉 Unlocked: ${TIERS[after - 1].title}` : `Added “${p.name}” to cart`);
     const badge = $("#cartCount");
     badge.classList.add("bump"); setTimeout(() => badge.classList.remove("bump"), 250);
   }
@@ -134,11 +136,132 @@
   const cartSubtotal = () => cartLines().reduce((s, l) => s + l.price * l.qty, 0);
   const cartCountTotal = () => state.cart.reduce((s, i) => s + i.qty, 0);
 
+  /* ---------- Offers engine (driven by OFFERS in products.js) ---------- */
+  const TIERS = OFFERS.slice().sort((a, b) => a.min - b.min);
+  const MAX_TIER = TIERS[TIERS.length - 1].min;
+
+  function computeTotals() {
+    const subtotal = cartSubtotal();
+    let discount = 0, freeShip = false, giftTier = null;
+    if (subtotal > 0) {
+      TIERS.forEach((o) => {
+        if (subtotal >= o.min) {
+          discount = Math.max(discount, o.discount || 0);
+          if (o.freeShipping) freeShip = true;
+          if (o.gift) giftTier = o;
+        }
+      });
+    }
+    const next = subtotal > 0 ? TIERS.find((o) => o.min > subtotal) || null : null;
+    return { subtotal, discount, freeShip, giftTier, next, total: Math.max(subtotal - discount, 0) };
+  }
+  const unlockedCount = () => TIERS.filter((o) => cartSubtotal() >= o.min).length;
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+  // Random gifts are picked once per tier and remembered until the order is sent
+  function pickGifts(tier) {
+    if (!tier) return [];
+    if (state.giftPick && state.giftPick.min === tier.min) return state.giftPick.list;
+    const g = tier.gift, list = [];
+    if (g.mystery) shuffle(GIFT_POOL.mystery.slice()).slice(0, g.mystery).forEach((n) => list.push(n));
+    if (g.keychains) shuffle(GIFT_POOL.keychains.slice()).slice(0, g.keychains).forEach((n) => list.push(n));
+    if (g.stickers) list.push(g.stickers + " assorted stickers");
+    state.giftPick = { min: tier.min, list };
+    return list;
+  }
+  function giftSummary(tier) {
+    const g = tier.gift, parts = [];
+    if (g.mystery) parts.push(g.mystery + " mystery gift");
+    if (g.keychains) parts.push(g.keychains + " surprise keychain" + (g.keychains > 1 ? "s" : ""));
+    if (g.stickers) parts.push(g.stickers + " stickers");
+    return parts.join(" + ");
+  }
+
+  function renderProgress(t) {
+    const box = $("#offerProgress");
+    if (t.subtotal <= 0) { box.hidden = true; box.innerHTML = ""; return; }
+    box.hidden = false;
+    const msg = t.next
+      ? `Add <b>${inr(t.next.min - t.subtotal)}</b> more to unlock <b>${esc(t.next.title)}</b>`
+      : `🎉 <b>All rewards unlocked!</b> Enjoy your free delivery &amp; gifts.`;
+    const pct = Math.min(t.subtotal / MAX_TIER * 100, 100);
+    const marks = TIERS.map((o) => {
+      const on = t.subtotal >= o.min;
+      return `<span class="pg-mark ${on ? "on" : ""}" style="left:${o.min / MAX_TIER * 100}%">${on ? "✓" : o.icon}<small>${esc(o.short)}</small></span>`;
+    }).join("");
+    box.innerHTML = `<div class="pg-msg">${msg}</div><div class="pg-bar"><div class="pg-fill" style="width:${pct}%"></div>${marks}</div>`;
+  }
+
+  function renderRecs(t) {
+    const box = $("#cartRecs");
+    if (!state.cart.length) { box.innerHTML = ""; return; }
+    const inCart = new Set(state.cart.map((i) => i.id));
+    const pool = PRODUCTS.filter((p) => p.inStock && !inCart.has(p.id));
+    if (!pool.length) { box.innerHTML = ""; return; }
+    const gap = t.next ? t.next.min - t.subtotal : 0;
+    const picks = [];
+    if (t.next) {
+      // the cheapest single product that unlocks the next reward
+      const closer = pool.filter((p) => p.price >= gap).sort((a, b) => a.price - b.price)[0];
+      if (closer) picks.push({ p: closer, tag: "Unlocks " + t.next.title });
+    }
+    pool
+      .filter((p) => !picks.some((x) => x.p.id === p.id))
+      .sort((a, b) => ((b.badge === "Bestseller") - (a.badge === "Bestseller")) || (discount(b) - discount(a)))
+      .forEach((p) => {
+        if (picks.length < 3) picks.push({ p, tag: t.next && p.price < gap ? "Gets you closer" : (p.badge || "Popular") });
+      });
+    const title = t.next ? `Fill your cart · unlock ${esc(t.next.title)}` : "You may also like";
+    box.innerHTML = `<h4>${title}</h4>` + picks.map(({ p, tag }) => `
+      <div class="rec">
+        <img src="${esc(p.image)}" alt="${esc(p.name)}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}'">
+        <div><span class="tag">${esc(tag)}</span><div class="rn">${esc(p.name)}</div><div class="rp">${inr(p.price)}</div></div>
+        <button data-add="${p.id}">+ Add</button>
+      </div>`).join("");
+  }
+
+  function renderCheckoutSummary() {
+    const t = computeTotals();
+    const gifts = pickGifts(t.giftTier);
+    $("#coSummary").innerHTML =
+      `<div class="row"><span>Items (${cartCountTotal()})</span><span>${inr(t.subtotal)}</span></div>` +
+      (t.discount ? `<div class="row ok"><span>Offer discount</span><span>-${inr(t.discount)}</span></div>` : "") +
+      `<div class="row"><span>Delivery</span><span class="${t.freeShip ? "ok" : ""}">${t.freeShip ? "FREE" : "Confirmed at verification"}</span></div>` +
+      (gifts.length ? `<div class="row ok"><span>Free gifts</span><span>${esc(gifts.join(" + "))}</span></div>` : "") +
+      `<div class="row total"><span>Total</span><span>${inr(t.total)}</span></div>`;
+  }
+
+  function initOffers() {
+    const fill = (el, html, times) => { const half = html.repeat(times); el.innerHTML = half + half; };
+    $("#offerGrid").innerHTML = TIERS.map((o) =>
+      `<div class="offer reveal"><span class="o-min">Above ${inr(o.min)}</span><h3>${esc(o.title)}</h3><p>${esc(o.desc)}</p></div>`).join("");
+    fill($("#tickerTrack"), TIERS.map((o) => `<span><b>✦</b>${esc(o.title)} · from ${inr(o.min)}</span>`).join(""), 3);
+    const words = ["漫画", "ORIGINALS", "ドン!", "COLLECT", "ゴゴゴ", "OTAKU", "バーン!", "ANIME"];
+    fill($("#bandTrack"), words.map((w, i) => `<span class="${i % 2 ? "out" : ""}">${w}</span><span>✦</span>`).join(""), 2);
+  }
+
   function renderCart() {
     const lines = cartLines();
     $("#cartCount").textContent = cartCountTotal();
-    $("#cartSubtotal").textContent = inr(cartSubtotal());
+    const t = computeTotals();
+    $("#cartSubtotal").textContent = inr(t.subtotal);
+    $("#discRow").hidden = !t.discount;
+    $("#cartDiscount").textContent = "-" + inr(t.discount);
+    $("#shipVal").textContent = lines.length === 0 ? "—" : (t.freeShip ? "FREE 🎉" : "At verification");
+    $("#shippingNote").textContent = t.freeShip ? "Free delivery unlocked — no shipping charges." : "Shipping: " + STORE_CONFIG.shippingText;
+    const gifts = pickGifts(t.giftTier);
+    $("#giftRow").hidden = !t.giftTier;
+    if (t.giftTier) $("#giftRow").innerHTML = "🎁 <b>Free gift:</b> " + esc(giftSummary(t.giftTier)) + " (picked at random when you order)";
+    $("#cartTotal").textContent = inr(t.total);
     $("#checkoutBtn").disabled = lines.length === 0;
+    renderProgress(t);
+    renderRecs(t);
 
     $("#cartItems").innerHTML = lines.length === 0
       ? `<p class="cart-empty">Your cart is empty.<br>Find something you love ✦</p>`
@@ -255,6 +378,8 @@
 
   function buildOrderText(orderId, data) {
     const lines = cartLines();
+    const t = computeTotals();
+    const gifts = pickGifts(t.giftTier);
     const items = lines.map((l, i) => `${i + 1}. ${l.name}\n   ${l.qty} x ${inr(l.price)} = ${inr(l.price * l.qty)}`).join("\n");
     return [
       `*New Order — ${STORE_CONFIG.brandName}*`,
@@ -263,8 +388,11 @@
       `*Items*`,
       items,
       ``,
-      `*Subtotal:* ${inr(cartSubtotal())}`,
-      `*Shipping:* ${STORE_CONFIG.shippingText}`,
+      `*Subtotal:* ${inr(t.subtotal)}`,
+      ...(t.discount ? [`*Offer Discount:* -${inr(t.discount)}`] : []),
+      `*Delivery:* ${t.freeShip ? "FREE (offer applied)" : STORE_CONFIG.shippingText}`,
+      ...(gifts.length ? [`*Free Gifts:* ${gifts.join(" + ")}`] : []),
+      `*Total (payable only after approval):* ${inr(t.total)}`,
       ``,
       `*Customer Details*`,
       `Name: ${data.name.trim()}`,
@@ -304,7 +432,7 @@
     if (!win) window.location.href = url; // popup blocked fallback
 
     toast(`Order ${orderId} sent to WhatsApp ✓`);
-    state.cart = []; saveCart(); renderCart();
+    state.cart = []; state.giftPick = null; saveCart(); renderCart();
     form.reset();
     closeAll();
   }
@@ -370,7 +498,13 @@
     });
     $("#checkoutBtn").addEventListener("click", () => {
       if (state.cart.length === 0) return;
+      renderCheckoutSummary();
       closeDrawer(); openModal("checkoutModal");
+    });
+    // Recommended products inside the cart
+    $("#cartRecs").addEventListener("click", (e) => {
+      const add = e.target.closest("[data-add]");
+      if (add) addToCart(+add.dataset.add);
     });
 
     // Closing
@@ -401,6 +535,7 @@
 
   /* ---------- Init ---------- */
   initStoreInfo();
+  initOffers();
   bindEvents();
   renderProducts();
   renderCart();
