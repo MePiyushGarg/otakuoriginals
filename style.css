@@ -140,7 +140,7 @@ h1, h2, h3, h4, .brand { font-family: var(--display); letter-spacing: -0.02em; }
 /* ---------- Shop ---------- */
 .shop { padding-top: 70px; padding-bottom: 90px; }
 .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 26px; }
-.section-head h2 { position: relative; display: inline-block; font-size: clamp(1.8rem, 4vw, 2.6rem); white-space: nowrap; }
+.section-head h2 { position: relative; display: inline-block; font-size: clamp(1.5rem, 3.6vw, 2.3rem); line-height: 1.15; padding-bottom: 8px; }
 .section-head h2::after { content: ""; position: absolute; left: 0; bottom: -6px; width: 56%; height: 5px; background: var(--accent); transform: skewX(-25deg); }
 .toolbar { display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; align-items: center; margin-bottom: 32px; }
 .pills { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -171,6 +171,16 @@ h1, h2, h3, h4, .brand { font-family: var(--display); letter-spacing: -0.02em; }
 /* scroll reveal */
 .reveal { opacity: 0; transform: translateY(28px); transition: opacity .7s ease, transform .7s ease; }
 .reveal.in { opacity: 1; transform: none; }
+
+/* ---------- SEO content block ---------- */
+.about { padding-top: 10px; padding-bottom: 70px; }
+.about h2 { font-size: clamp(1.4rem, 3.2vw, 2rem); margin-bottom: 14px; }
+.about h3 { font-size: 1.05rem; margin-bottom: 8px; }
+.about p { color: #333; max-width: 760px; margin-bottom: 18px; font-size: .96rem; }
+.about ul { list-style: disc; padding-left: 20px; font-size: .92rem; color: #333; }
+.about li { margin-bottom: 6px; }
+.about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-bottom: 18px; background: rgba(255,255,255,.9); border: 2px solid var(--ink); padding: 22px; }
+@media (max-width: 680px) { .about-grid { grid-template-columns: 1fr; gap: 18px; padding: 16px; } .about { padding-bottom: 44px; } }
 
 /* ---------- Footer ---------- */
 .footer { background: var(--ink); color: #eee; padding: 60px 0 0; }
@@ -327,7 +337,7 @@ h1, h2, h3, h4, .brand { font-family: var(--display); letter-spacing: -0.02em; }
   .offer h3 { font-size: 1rem; }
   .offer p { font-size: .74rem; }
   .section-head { flex-direction: column; align-items: flex-start; gap: 6px; }
-  .section-head h2 { font-size: 1.7rem; }
+  .section-head h2 { font-size: 1.45rem; }
 
   /* shop */
   .shop { padding-top: 44px; padding-bottom: 60px; }

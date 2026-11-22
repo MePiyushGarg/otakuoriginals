@@ -12,6 +12,7 @@
   const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
   const inr = (n) => "₹" + Number(n).toLocaleString("en-IN");
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const altText = (p) => p.name + " – " + p.category.toLowerCase() + " online in India | OtakuOriginals";
   const discount = (p) => (p.originalPrice > p.price ? Math.round((1 - p.price / p.originalPrice) * 100) : 0);
   const FALLBACK_IMG = "data:image/svg+xml;utf8," + encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="750"><rect width="100%" height="100%" fill="#eee"/><text x="50%" y="50%" fill="#999" font-family="sans-serif" font-size="28" text-anchor="middle">OtakuOriginals</text></svg>'
@@ -70,7 +71,7 @@
       return `
       <article class="card reveal" data-id="${p.id}" tabindex="0" aria-label="${esc(p.name)}">
         <div class="card-img">
-          <img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">
+          <img src="${esc(p.image)}" alt="${esc(altText(p))}" loading="lazy" width="600" height="750">
           ${p.badge ? `<span class="badge">${esc(p.badge)}</span>` : ""}
           ${off ? `<span class="badge off">-${off}%</span>` : ""}
           ${!p.inStock ? `<div class="sold">Out of Stock</div>` : ""}
@@ -221,7 +222,7 @@
     const title = t.next ? `Fill your cart · unlock ${esc(t.next.title)}` : "You may also like";
     box.innerHTML = `<h4>${title}</h4>` + picks.map(({ p, tag }) => `
       <div class="rec">
-        <img src="${esc(p.image)}" alt="${esc(p.name)}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}'">
+        <img src="${esc(p.image)}" alt="${esc(altText(p))}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}'">
         <div><span class="tag">${esc(tag)}</span><div class="rn">${esc(p.name)}</div><div class="rp">${inr(p.price)}</div></div>
         <button data-add="${p.id}">+ Add</button>
       </div>`).join("");
@@ -302,7 +303,7 @@
     if (!p) return;
     const off = discount(p);
     $("#quickContent").innerHTML = `
-      <div class="qv-img"><img src="${esc(p.image)}" alt="${esc(p.name)}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}'"></div>
+      <div class="qv-img"><img src="${esc(p.image)}" alt="${esc(altText(p))}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}'"></div>
       <div class="qv-info">
         <span class="card-cat">${esc(p.category)}${p.badge ? " · " + esc(p.badge) : ""}</span>
         <h3>${esc(p.name)}</h3>
@@ -540,8 +541,36 @@
     renderProducts();
   }
 
+  /* ---------- SEO: Product list schema generated from products.js ---------- */
+  function injectProductSchema() {
+    try {
+      const abs = (u) => /^https?:/i.test(u) ? u : "https://otakuoriginals.shop/" + String(u).replace(/^\.?\//, "");
+      const data = {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": "OtakuOriginals anime merchandise",
+        "itemListElement": PRODUCTS.map((p, i) => ({
+          "@type": "ListItem", "position": i + 1,
+          "item": {
+            "@type": "Product", "name": p.name, "description": p.description, "image": abs(p.image),
+            "category": p.category, "brand": { "@type": "Brand", "name": "OtakuOriginals" },
+            "offers": {
+              "@type": "Offer", "url": "https://otakuoriginals.shop/#shop", "priceCurrency": "INR", "price": String(p.price),
+              "availability": p.inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+              "itemCondition": "https://schema.org/NewCondition"
+            }
+          }
+        }))
+      };
+      const s = document.createElement("script");
+      s.type = "application/ld+json"; s.textContent = JSON.stringify(data);
+      document.head.appendChild(s);
+    } catch (e) { /* schema is optional */ }
+  }
+
   /* ---------- Init ---------- */
   initStoreInfo();
+  injectProductSchema();
   initOffers();
   bindEvents();
   renderProducts();
