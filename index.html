@@ -9,6 +9,8 @@
   <link rel="canonical" href="https://otakuoriginals.shop/">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="theme-color" content="#fafafa">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/og-image.png">
 
   <!-- Open Graph / Twitter -->
   <meta property="og:type" content="website">
@@ -17,11 +19,11 @@
   <meta property="og:title" content="OtakuOriginals | Buy Anime Merchandise Online in India">
   <meta property="og:description" content="Anime figures, posters, stickers and merch with pan-India delivery. Pay only after stock verification.">
   <meta property="og:url" content="https://otakuoriginals.shop/">
-  <meta property="og:image" content="https://otakuoriginals.shop/images/og-image.jpg">
+  <meta property="og:image" content="https://otakuoriginals.shop/assets/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="OtakuOriginals | Buy Anime Merchandise Online in India">
   <meta name="twitter:description" content="Anime figures, posters, stickers and merch with pan-India delivery. Pay only after stock verification.">
-  <meta name="twitter:image" content="https://otakuoriginals.shop/images/og-image.jpg">
+  <meta name="twitter:image" content="https://otakuoriginals.shop/assets/og-image.png">
 
   <!-- Structured data: Organization + WebSite + WebPage (product list is added automatically by app.js) -->
   <script type="application/ld+json">
@@ -43,7 +45,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
+
+  <!-- ============ ANALYTICS ============
+       Paste your analytics code (Google Analytics / Cloudflare / Meta Pixel) right below this line.
+       It will load on every visit. ============ -->
+
 </head>
 <body>
 
@@ -164,6 +171,58 @@
     </section>
   </main>
 
+  <!-- ================= JOURNEY (INSTAGRAM REELS) ================= -->
+  <section class="journey" id="journey">
+    <div class="container">
+      <div class="section-head reveal">
+        <h2>Our Journey</h2>
+        <p class="muted">Behind the scenes, unboxings &amp; new drops</p>
+      </div>
+    </div>
+    <div class="slider" id="journeySlider" role="region" aria-roledescription="carousel" aria-label="Instagram reels">
+      <div class="slider-track" id="journeyTrack"></div>
+    </div>
+    <div class="container slider-ctrl">
+      <button type="button" class="sl-btn" id="jPrev" aria-label="Previous reel">←</button>
+      <div class="sl-dots" id="jDots" aria-hidden="true"></div>
+      <button type="button" class="sl-btn" id="jNext" aria-label="Next reel">→</button>
+      <a id="jFollow" class="btn btn-ghost" target="_blank" rel="noopener">Follow on Instagram</a>
+    </div>
+  </section>
+
+  <!-- ================= CUSTOMER REVIEWS ================= -->
+  <section class="reviews container" id="reviews">
+    <div class="section-head reveal">
+      <h2>Customer Love</h2>
+      <button type="button" class="btn btn-primary" id="openReview">Share your review</button>
+    </div>
+    <p class="muted rv-note">Photos and comments from real OtakuOriginals customers. Tap ♥ to like a review.</p>
+    <div class="rv-grid" id="reviewGrid"></div>
+  </section>
+
+  <!-- ================= OUR STORY ================= -->
+  <section class="story container" id="story">
+    <div class="story-grid reveal">
+      <div class="story-img">
+        <!-- Replace by uploading your own photo as assets/founder.jpg -->
+        <img src="assets/founder.jpg" alt="Piyush, founder of OtakuOriginals from Patiala" width="600" height="750" loading="lazy" onerror="this.onerror=null;this.src='assets/placeholder.svg'">
+      </div>
+      <div class="story-text">
+        <p class="eyebrow">Our Story</p>
+        <h2>Hi, I'm Piyush from Patiala.</h2>
+        <p>I started OtakuOriginals because anime merch in India is often overpriced and hard to find. My goal is simple: help you get your favourite figures, posters, stickers and merch at better prices than most retail stores, with honest stock checks and no payment until you approve.</p>
+        <p>We are a young brand. Right now we sell general anime-inspired merchandise, and as we grow, we plan to launch our own OtakuOriginals label.</p>
+        <a href="#shop" class="btn btn-primary">Start Shopping →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FAQ ================= -->
+  <section class="faq container" id="faq">
+    <div class="section-head reveal"><h2>Frequently Asked Questions</h2></div>
+    <div class="faq-list" id="faqList"></div>
+  </section>
+
   <!-- ================= SEO CONTENT ================= -->
   <section class="about container">
     <h2>How Stock-Verified WhatsApp Ordering Works</h2>
@@ -218,6 +277,11 @@
         <ul>
           <li><a href="#" data-policy="shipping">Shipping Policy</a></li>
           <li><a href="#" data-policy="returns">Return Policy</a></li>
+          <li><a href="#" data-policy="privacy">Privacy Policy</a></li>
+          <li><a href="#" data-policy="terms">Terms &amp; Conditions</a></li>
+          <li><a href="#faq">FAQ</a></li>
+          <li><a href="#reviews">Customer Reviews</a></li>
+          <li><a href="#journey">Our Journey</a></li>
           <li><a id="mailLink" href="#"></a></li>
           <li><a id="waText" target="_blank" rel="noopener" href="#"></a></li>
         </ul>
@@ -250,6 +314,7 @@
       <div class="gift-line" id="giftRow" hidden></div>
       <div class="row total"><span>Total</span><strong id="cartTotal">₹0</strong></div>
       <p class="muted small" id="shippingNote"></p>
+      <p class="muted small">📦 <span data-cfg="trackingText"></span></p>
       <button class="btn btn-primary block" id="checkoutBtn">Proceed to Order</button>
     </div>
   </aside>
@@ -271,6 +336,9 @@
       <div class="notice" role="note">
         <strong>Important Note:</strong> No payment is required right now. Payment will not be processed until our admin verifies stock availability and takes your approval to pack the order.
       </div>
+
+      <p class="co-meta"><strong>Payment:</strong> <span data-cfg="paymentText"></span></p>
+      <p class="co-meta"><strong>Order tracking:</strong> <span data-cfg="trackingText"></span></p>
 
       <div class="co-summary" id="coSummary"></div>
 
@@ -309,6 +377,7 @@
           <textarea name="note" rows="2" placeholder="Delivery instructions, size, special requests…"></textarea>
         </label>
 
+        <p class="consent">We save these details to process your order and may message you on WhatsApp if you need help completing it. See our <a href="#" data-policy="privacy">Privacy Policy</a>.</p>
         <button type="submit" class="btn btn-primary block">Send Order on WhatsApp</button>
         <button type="button" class="btn btn-ghost block" id="copyBtn">Copy Order Summary</button>
       </form>
@@ -323,9 +392,73 @@
     </div>
   </div>
 
+  <!-- ================= REVIEW MODAL ================= -->
+  <div class="modal" id="reviewModal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-card">
+      <button class="close-btn" data-close aria-label="Close">✕</button>
+      <h3>Share your review</h3>
+      <form id="reviewForm" novalidate>
+        <label>Your name *
+          <input type="text" name="name" maxlength="40" autocomplete="name" required>
+        </label>
+        <label>Product (optional)
+          <select name="product" id="reviewProduct"><option value="">Select a product</option></select>
+        </label>
+        <fieldset class="stars-input">
+          <legend>Rating *</legend>
+          <div class="star-row">
+            <input type="radio" name="rating" value="5" id="st5" checked><label for="st5" title="5 stars">★</label>
+            <input type="radio" name="rating" value="4" id="st4"><label for="st4" title="4 stars">★</label>
+            <input type="radio" name="rating" value="3" id="st3"><label for="st3" title="3 stars">★</label>
+            <input type="radio" name="rating" value="2" id="st2"><label for="st2" title="2 stars">★</label>
+            <input type="radio" name="rating" value="1" id="st1"><label for="st1" title="1 star">★</label>
+          </div>
+        </fieldset>
+        <label>Your comment *
+          <textarea name="comment" rows="3" maxlength="400" placeholder="How was your order?" required></textarea>
+        </label>
+        <div class="photo-pick">
+          <label class="btn btn-ghost block" for="reviewPhotos">📷 Add up to 2 photos</label>
+          <input type="file" id="reviewPhotos" accept="image/*" multiple hidden>
+          <div class="photo-previews" id="photoPreviews"></div>
+        </div>
+        <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <small class="err" id="reviewErr"></small>
+        <p class="consent">Your review appears after a quick check by our team. Your name, comment and photos will be shown publicly.</p>
+        <button type="submit" class="btn btn-primary block" id="reviewSubmit">Submit review</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= ABANDONED-CART NUDGE ================= -->
+  <div class="nudge" id="nudge" role="status" hidden>
+    <div class="nudge-text" id="nudgeText"></div>
+    <div class="nudge-actions">
+      <button type="button" class="btn btn-primary" id="nudgeGo">View cart</button>
+      <button type="button" class="close-btn" id="nudgeClose" aria-label="Dismiss">✕</button>
+    </div>
+  </div>
+
+  <!-- ================= HELP ASSISTANT ================= -->
+  <button type="button" class="chat-fab" id="chatFab" aria-label="Open help chat" aria-expanded="false">
+    <svg viewBox="0 0 24 24" class="icon"><path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.6A8 8 0 1 1 21 12z"/><circle cx="9" cy="12" r=".6"/><circle cx="12.5" cy="12" r=".6"/><circle cx="16" cy="12" r=".6"/></svg>
+    <span>Help</span>
+  </button>
+  <section class="chat" id="chatPanel" aria-label="Help assistant" hidden>
+    <div class="chat-head"><strong>Otaku Assistant</strong><button type="button" class="close-btn" id="chatClose" aria-label="Close chat">✕</button></div>
+    <div class="chat-log" id="chatLog" aria-live="polite"></div>
+    <div class="chat-chips" id="chatChips"></div>
+    <form class="chat-form" id="chatForm">
+      <input type="text" id="chatInput" placeholder="Type your question…" maxlength="200" autocomplete="off" aria-label="Your question">
+      <button type="submit" class="btn btn-primary">Send</button>
+    </form>
+    <a class="chat-human" id="chatHuman" target="_blank" rel="noopener">Talk to a person on WhatsApp →</a>
+  </section>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="products.js?v=6"></script>
-  <script src="app.js?v=6"></script>
+  <script src="products.js?v=7"></script>
+  <script src="app.js?v=7"></script>
+  <script src="extras.js?v=7"></script>
 </body>
 </html>

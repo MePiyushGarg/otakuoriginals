@@ -30,12 +30,14 @@
     } catch (e) { return []; }
   }
   function saveCart() {
+    touchActive();
     try { localStorage.setItem(CART_KEY, JSON.stringify(state.cart)); } catch (e) { /* storage unavailable */ }
   }
 
   /* ---------- Static store info ---------- */
   function initStoreInfo() {
     const c = STORE_CONFIG;
+    $$("[data-cfg]").forEach((el) => { el.textContent = c[el.dataset.cfg] || ""; });
     $("#igLink").href = c.instagram;
     $("#ytLink").href = c.youtube;
     $("#waLink").href = "https://wa.me/" + c.whatsappNumber;
@@ -292,7 +294,7 @@
     $("#overlay").classList.toggle("show", $("#drawer").classList.contains("open"));
     document.body.classList.toggle("lock", anyOpen);
   }
-  function openDrawer() { $("#drawer").classList.add("open"); $("#drawer").setAttribute("aria-hidden", "false"); syncOverlay(); }
+  function openDrawer() { hideNudge(false); $("#drawer").classList.add("open"); $("#drawer").setAttribute("aria-hidden", "false"); syncOverlay(); }
   function closeDrawer() { $("#drawer").classList.remove("open"); $("#drawer").setAttribute("aria-hidden", "true"); syncOverlay(); }
   function openModal(id) { const m = $("#" + id); m.classList.add("open"); m.setAttribute("aria-hidden", "false"); syncOverlay(); }
   function closeModal(m) { m.classList.remove("open"); m.setAttribute("aria-hidden", "true"); syncOverlay(); }
@@ -303,7 +305,7 @@
     if (!p) return;
     const off = discount(p);
     $("#quickContent").innerHTML = `
-      <div class="qv-img"><img src="${esc(p.image)}" alt="${esc(altText(p))}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}'"></div>
+      ${galleryHTML(p)}
       <div class="qv-info">
         <span class="card-cat">${esc(p.category)}${p.badge ? " · " + esc(p.badge) : ""}</span>
         <h3>${esc(p.name)}</h3>
@@ -315,7 +317,41 @@
         <p class="muted" style="margin:0">${esc(p.description)}</p>
         <button class="btn btn-primary block" data-add="${p.id}" data-closeqv ${p.inStock ? "" : "disabled"}>${p.inStock ? "Add to Cart" : "Sold Out"}</button>
       </div>`;
+    state.gallery = { imgs: galleryImages(p), i: 0 };
     openModal("quickModal");
+  }
+
+  /* ---------- Product photo gallery (quick view) ---------- */
+  function galleryImages(p) { return Array.isArray(p.images) && p.images.length ? p.images : [p.image]; }
+  function galleryHTML(p) {
+    const imgs = galleryImages(p), multi = imgs.length > 1;
+    const err = `onerror="this.onerror=null;this.src='${FALLBACK_IMG}'"`;
+    return `<div class="qv-img gallery">
+      <div class="g-main" id="gMain"><img id="gImg" src="${esc(imgs[0])}" alt="${esc(altText(p))}" ${err}></div>
+      ${multi ? `<button type="button" class="g-nav prev" data-gdir="-1" aria-label="Previous photo">‹</button>
+      <button type="button" class="g-nav next" data-gdir="1" aria-label="Next photo">›</button>
+      <div class="g-thumbs">${imgs.map((src, i) => `<button type="button" class="g-thumb ${i ? "" : "on"}" data-gi="${i}" aria-label="Photo ${i + 1}"><img src="${esc(src)}" alt="" loading="lazy" ${err}></button>`).join("")}</div>` : ""}
+    </div>`;
+  }
+  function gallerySet(i) {
+    const g = state.gallery; if (!g) return;
+    g.i = (i + g.imgs.length) % g.imgs.length;
+    const img = $("#gImg"); if (img) img.src = g.imgs[g.i];
+    $$(".g-thumb").forEach((t, k) => t.classList.toggle("on", k === g.i));
+  }
+  function bindGallery() {
+    const qc = $("#quickContent");
+    qc.addEventListener("click", (e) => {
+      const nav = e.target.closest("[data-gdir]"); if (nav) { gallerySet((state.gallery ? state.gallery.i : 0) + +nav.dataset.gdir); return; }
+      const th = e.target.closest("[data-gi]"); if (th) gallerySet(+th.dataset.gi);
+    });
+    let sx = null;
+    qc.addEventListener("touchstart", (e) => { sx = e.target.closest("#gMain") ? e.touches[0].clientX : null; }, { passive: true });
+    qc.addEventListener("touchend", (e) => {
+      if (sx === null) return;
+      const dx = e.changedTouches[0].clientX - sx; sx = null;
+      if (Math.abs(dx) > 40) gallerySet((state.gallery ? state.gallery.i : 0) + (dx < 0 ? 1 : -1));
+    }, { passive: true });
   }
 
   const POLICIES = {
@@ -328,6 +364,7 @@
         <li>Orders are typically dispatched within 2–4 working days after you approve.</li>
         <li>Delivery usually takes 4–8 working days depending on your location.</li>
         <li>Tracking details are shared on WhatsApp once your order ships.</li>
+        <li>Payment: UPI after your order is approved. Cash on Delivery is coming soon.</li>
       </ul>
       <p class="muted">Timelines are estimates and may vary due to courier delays or remote pincodes.</p>`,
     returns: `
@@ -339,7 +376,38 @@
         <li>Eligible items are replaced or refunded after verification.</li>
         <li>Items must be unused and in original packaging. Opened stickers and custom-sized apparel are not returnable unless defective.</li>
       </ul>
-      <p>Contact us: <strong>${esc(STORE_CONFIG.email)}</strong> or WhatsApp +${esc(STORE_CONFIG.whatsappNumber)}.</p>`
+      <p>Contact us: <strong>${esc(STORE_CONFIG.email)}</strong> or WhatsApp +${esc(STORE_CONFIG.whatsappNumber)}.</p>`,
+    privacy: `
+      <h3>Privacy Policy</h3>
+      <p class="muted">Last updated: November 2026</p>
+      <p><strong>Who we are:</strong> OtakuOriginals, run by Piyush from Patiala, Punjab, India. Contact: ${esc(STORE_CONFIG.email)}.</p>
+      <p><strong>What we collect</strong></p>
+      <ul>
+        <li>Order details: your name, phone number, delivery address, order note and the items in your cart.</li>
+        <li>Partly filled orders: if you start filling in the order form, we may save what you entered so we can help you finish the order.</li>
+        <li>Reviews: your name, comment, rating and any photos you choose to upload.</li>
+        <li>Your cart is saved in your own browser (local storage) so it is still there when you return.</li>
+      </ul>
+      <p><strong>How we use it:</strong> to verify stock, pack and deliver your order, to contact you on WhatsApp about your order or if you need help completing it, to show approved reviews, and to improve the store.</p>
+      <p><strong>Where it is stored:</strong> order and review records are kept in Google Sheets and Google Drive managed by us. When you send an order, WhatsApp (Meta) delivers the message to us. We share your name, phone and address with courier partners only to deliver your order. We do not sell your data.</p>
+      <p><strong>Your choices:</strong> you can ask us to correct or delete your details or a review by emailing ${esc(STORE_CONFIG.email)}. We keep order records for as long as needed for delivery, support and legal or tax requirements.</p>
+      <p><strong>Public content:</strong> reviews and photos you submit may be shown publicly on this website once approved.</p>
+      <p class="muted">We may update this policy from time to time. Continued use of the site means you accept the updated policy.</p>`,
+    terms: `
+      <h3>Terms &amp; Conditions</h3>
+      <p class="muted">Last updated: November 2026</p>
+      <ul>
+        <li><strong>Orders:</strong> sending an order on WhatsApp is a request to buy. It becomes confirmed only after we verify stock and you approve packing.</li>
+        <li><strong>Prices:</strong> all prices are in Indian Rupees (₹). We may correct pricing or stock errors and will tell you before packing.</li>
+        <li><strong>Payment:</strong> no payment is taken when you send the order. We currently accept UPI after approval. Cash on Delivery is coming soon.</li>
+        <li><strong>Products:</strong> we currently sell general anime-inspired merchandise. Items are not official licensed products unless the product page says so. Photos are for illustration and small colour or finish differences can occur.</li>
+        <li><strong>Offers and gifts:</strong> offers apply automatically based on your cart value. Free gifts such as keychains, stickers and mystery items are chosen at random from available stock. We may change or end offers at any time.</li>
+        <li><strong>Shipping and returns:</strong> please read our Shipping Policy and Return Policy.</li>
+        <li><strong>Reviews:</strong> by submitting a review or photo you allow us to display it on this site. We may remove content that is abusive, unrelated or unsafe.</li>
+        <li><strong>Liability:</strong> to the extent allowed by law, our liability for any order is limited to the amount paid for that order.</li>
+        <li><strong>Governing law:</strong> these terms are governed by the laws of India, and courts at Patiala, Punjab have jurisdiction.</li>
+      </ul>
+      <p>Questions? Email ${esc(STORE_CONFIG.email)} or WhatsApp +${esc(STORE_CONFIG.whatsappNumber)}.</p>`
   };
 
   /* ---------- Toast ---------- */
@@ -421,20 +489,71 @@
     return ok;
   }
 
+  /* ---------- Google Sheet order log ---------- */
+  // Every checkout gets one Order ID. The row in the sheet is created when the customer has
+  // typed a valid name + phone, then upgraded: Details entered -> Copied -> Submitted -> Redirected.
+  const RANK = { lead: 1, copied: 2, submitted: 3, redirected: 4 };
+  const STATUS_TEXT = {
+    lead: "Details entered - NOT submitted",
+    copied: "Copied summary - not sent yet",
+    submitted: "Submitted - opening WhatsApp",
+    redirected: "Redirected to WhatsApp",
+    redirectedSame: "Redirected to WhatsApp (same tab)"
+  };
+  function postToSheet(payload, keepalive = true) {
+    const url = STORE_CONFIG.sheetWebhookUrl;
+    if (!url) return Promise.resolve(false);
+    return fetch(url, { method: "POST", mode: "no-cors", keepalive, headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload) })
+      .then(() => true).catch(() => false);
+  }
+  function ensureOrderId() { if (!state.pendingOrderId) state.pendingOrderId = generateOrderId(); return state.pendingOrderId; }
+  function logOrder(kind, data, orderId) {
+    if (!STORE_CONFIG.sheetWebhookUrl || state.cart.length === 0) return;
+    const t = computeTotals(), gifts = pickGifts(t.giftTier);
+    postToSheet({
+      type: "order", orderId, rank: RANK[kind === "redirectedSame" ? "redirected" : kind], status: STATUS_TEXT[kind],
+      name: (data.name || "").trim(), phone: (data.phone || "").trim(), street: (data.street || "").trim(),
+      landmark: (data.landmark || "").trim(), city: (data.city || "").trim(), state: (data.state || "").trim(),
+      pincode: (data.pincode || "").trim(), note: (data.note || "").trim(),
+      items: cartLines().map((l) => l.name + " x" + l.qty + " (" + inr(l.price * l.qty) + ")").join("; "),
+      itemCount: cartCountTotal(), subtotal: t.subtotal, discount: t.discount,
+      delivery: t.freeShip ? "FREE" : "Confirmed at verification", gifts: gifts.join(" + "), total: t.total,
+      page: location.origin + location.pathname
+    });
+  }
+  let leadTimer;
+  function leadReady(d) { return !VALIDATORS.name(d.name || "") && !VALIDATORS.phone(d.phone || ""); }
+  function scheduleLead() {
+    if (!STORE_CONFIG.sheetWebhookUrl) return;
+    clearTimeout(leadTimer);
+    leadTimer = setTimeout(flushLead, 1500);
+  }
+  function flushLead() {
+    clearTimeout(leadTimer);
+    if (!$("#checkoutModal").classList.contains("open") || state.cart.length === 0) return;
+    const d = getFormData($("#checkoutForm"));
+    if (leadReady(d)) logOrder("lead", d, ensureOrderId());
+  }
+
   function submitOrder(e) {
     e.preventDefault();
     if (state.cart.length === 0) { toast("Your cart is empty"); return; }
     const form = e.currentTarget;
     if (!validateForm(form)) return;
 
-    const orderId = generateOrderId();
-    const text = buildOrderText(orderId, getFormData(form));
+    const orderId = ensureOrderId();
+    const data = getFormData(form);
+    const text = buildOrderText(orderId, data);
     state.lastOrderText = text;
+    logOrder("submitted", data, orderId);              // saved BEFORE WhatsApp opens
     const url = "https://wa.me/" + STORE_CONFIG.whatsappNumber + "?text=" + encodeURIComponent(text);
-    const win = window.open(url, "_blank", "noopener");
-    if (!win) window.location.href = url; // popup blocked fallback
+    const win = window.open(url, "_blank");
+    if (win) { try { win.opener = null; } catch (err) { /* ignore */ } }
+    logOrder(win ? "redirected" : "redirectedSame", data, orderId);
+    if (!win) setTimeout(() => { window.location.href = url; }, 250); // popup blocked fallback
 
     toast(`Order ${orderId} sent to WhatsApp ✓`);
+    state.pendingOrderId = null;
     state.cart = []; state.giftPick = null; saveCart(); renderCart();
     form.reset();
     closeAll();
@@ -444,7 +563,9 @@
     const form = $("#checkoutForm");
     if (state.cart.length === 0) { toast("Your cart is empty"); return; }
     if (!validateForm(form)) return;
-    const text = buildOrderText(generateOrderId(), getFormData(form));
+    const copyId = ensureOrderId(), copyData = getFormData(form);
+    const text = buildOrderText(copyId, copyData);
+    logOrder("copied", copyData, copyId);
     try {
       await navigator.clipboard.writeText(text);
     } catch (err) {
@@ -502,6 +623,7 @@
     $("#checkoutBtn").addEventListener("click", () => {
       if (state.cart.length === 0) return;
       renderCheckoutSummary();
+      ensureOrderId();
       closeDrawer(); openModal("checkoutModal");
     });
     // Recommended products inside the cart
@@ -524,6 +646,11 @@
       inp.addEventListener("blur", () => validateField(inp));
       inp.addEventListener("input", () => { if (inp.classList.contains("invalid")) validateField(inp); });
     });
+    // save partly filled details (once name + phone are valid) so we can follow up
+    form.addEventListener("input", scheduleLead);
+    document.addEventListener("visibilitychange", () => { if (document.hidden) flushLead(); });
+    window.addEventListener("pagehide", flushLead);
+    bindGallery();
     // digits only
     ["phone", "pincode"].forEach((n) => {
       form.elements[n].addEventListener("input", (e) => { e.target.value = e.target.value.replace(/\D/g, ""); });
@@ -552,7 +679,7 @@
         "itemListElement": PRODUCTS.map((p, i) => ({
           "@type": "ListItem", "position": i + 1,
           "item": {
-            "@type": "Product", "name": p.name, "description": p.description, "image": abs(p.image),
+            "@type": "Product", "name": p.name, "description": p.description, "image": galleryImages(p).map(abs),
             "category": p.category, "brand": { "@type": "Brand", "name": "OtakuOriginals" },
             "offers": {
               "@type": "Offer", "url": "https://otakuoriginals.shop/#shop", "priceCurrency": "INR", "price": String(p.price),
@@ -568,6 +695,38 @@
     } catch (e) { /* schema is optional */ }
   }
 
+  /* ---------- Abandoned-cart nudge ---------- */
+  const LAST_KEY = "otakuoriginals_last_active", NUDGE_KEY = "otakuoriginals_nudge_dismissed";
+  function touchActive() { try { localStorage.setItem(LAST_KEY, String(Date.now())); } catch (e) { /* ignore */ } }
+  function nudgeDismissed() { try { return sessionStorage.getItem(NUDGE_KEY) === "1"; } catch (e) { return false; } }
+  function hideNudge(remember) {
+    const n = $("#nudge"); if (!n) return;
+    n.classList.remove("show"); setTimeout(() => { n.hidden = true; }, 300);
+    if (remember) { try { sessionStorage.setItem(NUDGE_KEY, "1"); } catch (e) { /* ignore */ } }
+  }
+  function showNudge() {
+    if (!state.cart.length || nudgeDismissed()) return;
+    if ($("#drawer").classList.contains("open") || $$(".modal.open").length) return;
+    const t = computeTotals(), n = cartCountTotal();
+    let msg = `🛒 You left <b>${n} item${n > 1 ? "s" : ""}</b> in your cart (${inr(t.total)}).`;
+    msg += t.next ? ` Add <b>${inr(t.next.min - t.subtotal)}</b> more to unlock <b>${esc(t.next.title)}</b>.` : " 🎉 All rewards unlocked!";
+    $("#nudgeText").innerHTML = msg;
+    const el = $("#nudge"); el.hidden = false; requestAnimationFrame(() => el.classList.add("show"));
+  }
+  function initNudge() {
+    $("#nudgeGo").addEventListener("click", () => { hideNudge(true); openDrawer(); });
+    $("#nudgeClose").addEventListener("click", () => hideNudge(true));
+    setTimeout(showNudge, 6000);                       // returning visitor with items still in cart
+    let hiddenAt = 0;
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) { hiddenAt = Date.now(); return; }
+      if (hiddenAt && Date.now() - hiddenAt > 120000) showNudge();   // came back after 2+ minutes
+    });
+  }
+
+  /* ---------- Shared helpers for extras.js ---------- */
+  window.OO = { esc, inr, toast, openModal, closeModal, closeAll, postToSheet, observeReveals, FALLBACK_IMG, config: STORE_CONFIG };
+
   /* ---------- Init ---------- */
   initStoreInfo();
   injectProductSchema();
@@ -576,4 +735,5 @@
   renderProducts();
   renderCart();
   observeReveals();
+  initNudge();
 })();
