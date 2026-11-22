@@ -16,7 +16,7 @@ const STORE_CONFIG = {
   // --- Google Sheet order log + customer reviews (see google-apps-script.gs) ---
   // After you deploy the Apps Script, paste its Web App URL here (ends with /exec).
   // Leave it as "" and the site still works (orders go to WhatsApp only, reviews fall back to WhatsApp).
-  sheetWebhookUrl: "",
+  sheetWebhookUrl: "https://script.google.com/macros/s/AKfycbzTwZkgVPS2TmVBBl36a7iK1AO0rCuLdoCgMh3Abe0496rS82wK-wATJ65Sw0sNtk0J/exec",
 
   // --- Optional future shipping settings (currently unused) ---
   // flatShippingFee: 79,          // flat fee in ₹
