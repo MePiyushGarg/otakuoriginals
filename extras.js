@@ -154,7 +154,9 @@
     const grid = $("#reviewGrid"), form = $("#reviewForm"), err = $("#reviewErr");
     let photos = [];
 
-    $("#reviewProduct").insertAdjacentHTML("beforeend", PRODUCTS.map((p) => `<option>${esc(p.name)}</option>`).join(""));
+    const fillProducts = () => { $("#reviewProduct").innerHTML = '<option value="">Select a product</option>' + PRODUCTS.map((p) => `<option>${esc(p.name)}</option>`).join(""); };
+    fillProducts();
+    document.addEventListener("oo:products", fillProducts);   // products can load a moment later from the admin list
     $("#openReview").addEventListener("click", () => OO.openModal("reviewModal"));
 
     grid.addEventListener("click", (e) => {

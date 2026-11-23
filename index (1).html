@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <title>OtakuOriginals Admin</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="admin.css?v=1">
+</head>
+<body>
+
+  <!-- ============ LOGIN ============ -->
+  <main class="login" id="loginView">
+    <form class="login-card" id="loginForm" autocomplete="on">
+      <div class="brand">Otaku<span>Originals</span> <small>Admin</small></div>
+      <p class="muted">Sign in to see abandoned checkouts and manage products.</p>
+      <label>Username
+        <input type="text" id="user" name="username" autocomplete="username" required>
+      </label>
+      <label>Password
+        <input type="password" id="pass" name="password" autocomplete="current-password" required>
+      </label>
+      <p class="err" id="loginErr" role="alert"></p>
+      <button class="btn primary" type="submit" id="loginBtn">Sign in</button>
+    </form>
+  </main>
+
+  <!-- ============ DASHBOARD ============ -->
+  <div class="app" id="appView" hidden>
+    <header class="bar">
+      <div class="brand">Otaku<span>Originals</span> <small>Admin</small></div>
+      <div class="bar-actions">
+        <button class="btn ghost sm" id="refreshBtn" title="Reload data">↻ Refresh</button>
+        <button class="btn ghost sm" id="logoutBtn">Log out</button>
+      </div>
+    </header>
+
+    <nav class="tabs" id="tabs">
+      <button class="tab on" data-tab="abandoned">Abandoned <b id="cntAband">0</b></button>
+      <button class="tab" data-tab="orders">All orders <b id="cntOrders">0</b></button>
+      <button class="tab" data-tab="products">Products <b id="cntProducts">0</b></button>
+    </nav>
+
+    <!-- orders (abandoned + all) -->
+    <section class="panel" id="panelOrders">
+      <div class="panel-head">
+        <p class="muted" id="ordersHelp"></p>
+        <input type="search" id="orderSearch" placeholder="Search name, phone or order ID">
+      </div>
+      <div id="orderList" class="list"></div>
+    </section>
+
+    <!-- products -->
+    <section class="panel" id="panelProducts" hidden>
+      <div class="panel-head">
+        <p class="muted">Products shown on your store. Adding your first product here replaces the sample product.</p>
+        <button class="btn primary" id="addProductBtn">＋ Add product</button>
+      </div>
+      <div id="productList" class="list"></div>
+    </section>
+  </div>
+
+  <!-- ============ PRODUCT FORM ============ -->
+  <div class="modal" id="productModal" hidden>
+    <form class="modal-card" id="productForm" novalidate>
+      <div class="modal-head">
+        <h2 id="productFormTitle">Add product</h2>
+        <button type="button" class="x" id="productClose" aria-label="Close">✕</button>
+      </div>
+
+      <label>Product name *
+        <input type="text" name="name" maxlength="120" required>
+      </label>
+      <div class="two">
+        <label>Category *
+          <select name="category">
+            <option>Action Figures</option>
+            <option>Posters</option>
+            <option>Stickers</option>
+            <option>Anime Merch</option>
+          </select>
+        </label>
+        <label>Badge
+          <select name="badge">
+            <option value="">None</option>
+            <option>Bestseller</option>
+            <option>New</option>
+            <option>Limited</option>
+          </select>
+        </label>
+      </div>
+      <div class="two">
+        <label>Selling price (₹) *
+          <input type="number" name="price" min="1" step="1" inputmode="numeric" required>
+        </label>
+        <label>Original price (₹)
+          <input type="number" name="originalPrice" min="0" step="1" inputmode="numeric" placeholder="for the discount tag">
+        </label>
+      </div>
+      <label>Description
+        <textarea name="description" rows="3" maxlength="600" placeholder="What makes it special? Size, material, etc."></textarea>
+      </label>
+
+      <div class="photos">
+        <span class="lbl">Photos (up to 5, first one is the main photo)</span>
+        <div class="thumbs" id="thumbs"></div>
+        <div class="photo-actions">
+          <label class="btn ghost sm" for="photoFile">📷 Add photos</label>
+          <input type="file" id="photoFile" accept="image/*" multiple hidden>
+          <div class="url-add">
+            <input type="url" id="photoUrl" placeholder="…or paste an image link (https://…)">
+            <button type="button" class="btn ghost sm" id="photoUrlBtn">Add</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="checks">
+        <label class="check"><input type="checkbox" name="inStock" checked> In stock</label>
+        <label class="check"><input type="checkbox" name="active" checked> Show on website</label>
+      </div>
+
+      <p class="err" id="productErr" role="alert"></p>
+      <div class="modal-foot">
+        <button type="button" class="btn ghost" id="productCancel">Cancel</button>
+        <button type="submit" class="btn primary" id="productSave">Save product</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="../products.js"></script>
+  <script src="../settings.js"></script>
+  <script src="admin.js?v=1"></script>
+</body>
+</html>

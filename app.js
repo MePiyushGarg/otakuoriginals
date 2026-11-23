@@ -25,8 +25,8 @@
   function loadCart() {
     try {
       const raw = JSON.parse(localStorage.getItem(CART_KEY)) || [];
-      // keep only valid items that still exist in the catalog
-      return raw.filter((i) => PRODUCTS.some((p) => p.id === i.id && p.inStock) && i.qty > 0);
+      // shape check only. Items are matched to the catalogue after products finish loading (pruneCart)
+      return raw.filter((i) => i && +i.qty > 0 && Number.isFinite(+i.id)).map((i) => ({ id: +i.id, qty: Math.min(+i.qty, 20) }));
     } catch (e) { return []; }
   }
   function saveCart() {
@@ -62,8 +62,63 @@
     return list;
   }
 
+  const PRODUCTS_CACHE = "oo_products_cache_v1";
+  const CAT_ORDER = ["Action Figures", "Posters", "Stickers", "Anime Merch"];
+  function normProduct(p) {
+    const imgs = Array.isArray(p.images) ? p.images.filter(Boolean) : [];
+    const image = p.image || imgs[0] || "";
+    return {
+      id: +p.id, name: String(p.name || ""), category: String(p.category || "Anime Merch"),
+      price: +p.price || 0, originalPrice: +p.originalPrice || 0, badge: String(p.badge || ""),
+      image, images: imgs.length ? imgs : [image], inStock: p.inStock !== false && String(p.inStock).toLowerCase() !== "no",
+      description: String(p.description || "")
+    };
+  }
+  function setProducts(list) { PRODUCTS.splice(0, PRODUCTS.length, ...list.map(normProduct).filter((p) => Number.isFinite(p.id) && p.name)); }
+  function applyCachedProducts() {
+    if (!STORE_CONFIG.sheetWebhookUrl) return;
+    try {
+      const c = JSON.parse(localStorage.getItem(PRODUCTS_CACHE));
+      if (c && c.managed && Array.isArray(c.list)) setProducts(c.list);
+    } catch (e) { /* ignore */ }
+  }
+  async function loadRemoteProducts() {
+    if (!STORE_CONFIG.sheetWebhookUrl) return;
+    try {
+      const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 9000);
+      const r = await fetch(STORE_CONFIG.sheetWebhookUrl + "?action=products", { signal: ctl.signal });
+      clearTimeout(tm);
+      const d = await r.json();
+      if (!d || !d.ok || !d.managed || !Array.isArray(d.products)) return;     // not managed yet: keep products.js list
+      setProducts(d.products);
+      try { localStorage.setItem(PRODUCTS_CACHE, JSON.stringify({ managed: true, list: d.products })); } catch (e) { /* ignore */ }
+      refreshCatalog();
+    } catch (e) { /* offline or not set up: keep what we have */ }
+  }
+  function refreshCatalog() {
+    pruneCart(); renderPills(); syncCategoryUI(); renderProducts(); renderCart(); injectProductSchema();
+    document.dispatchEvent(new CustomEvent("oo:products"));
+  }
+  function categoriesInUse() {
+    const have = Array.from(new Set(PRODUCTS.map((p) => p.category)));
+    return CAT_ORDER.filter((c) => have.includes(c)).concat(have.filter((c) => !CAT_ORDER.includes(c)));
+  }
+  function renderPills() {
+    const cats = categoriesInUse();
+    if (state.category !== "All" && !cats.includes(state.category)) state.category = "All";
+    $("#pills").innerHTML = ["All"].concat(cats).map((c) => `<button class="pill ${c === state.category ? "active" : ""}" data-cat="${esc(c)}">${esc(c)}</button>`).join("");
+    $("#pills").hidden = cats.length <= 1;                       // no filters needed with a single category
+    $("#sortSelect").hidden = PRODUCTS.length <= 1;
+    $(".toolbar").hidden = cats.length <= 1 && PRODUCTS.length <= 1;
+  }
+  function syncCategoryUI() {
+    const have = new Set(PRODUCTS.map((p) => p.category));
+    $$("a[data-cat]").forEach((a) => { (a.closest("li") || a).hidden = !have.has(a.dataset.cat); });
+  }
+
   function renderProducts() {
     const list = getVisibleProducts();
+    $("#emptyState").textContent = PRODUCTS.length === 0 ? "New products are coming soon. Follow us on Instagram for updates!" : "No products found. Try a different search or category.";
     const grid = $("#productGrid");
     $("#emptyState").hidden = list.length > 0;
     $("#resultCount").textContent = list.length + (list.length === 1 ? " item" : " items");
@@ -135,9 +190,14 @@
     state.cart = state.cart.filter((i) => i.id !== id);
     saveCart(); renderCart();
   }
-  const cartLines = () => state.cart.map((i) => ({ ...PRODUCTS.find((p) => p.id === i.id), qty: i.qty }));
+  const cartLines = () => state.cart.map((i) => { const p = PRODUCTS.find((x) => x.id === i.id); return p ? { ...p, qty: i.qty } : null; }).filter(Boolean);
+  function pruneCart() {
+    const before = state.cart.length;
+    state.cart = state.cart.filter((i) => i.qty > 0 && PRODUCTS.some((p) => p.id === i.id && p.inStock));
+    if (state.cart.length !== before) saveCart();
+  }
   const cartSubtotal = () => cartLines().reduce((s, l) => s + l.price * l.qty, 0);
-  const cartCountTotal = () => state.cart.reduce((s, i) => s + i.qty, 0);
+  const cartCountTotal = () => cartLines().reduce((s, l) => s + l.qty, 0);
 
   /* ---------- Offers engine (driven by OFFERS in products.js) ---------- */
   const TIERS = (typeof OFFERS !== "undefined" ? OFFERS : []).slice().sort((a, b) => a.min - b.min);
@@ -146,7 +206,8 @@
 
   function computeTotals() {
     const subtotal = cartSubtotal();
-    let discount = 0, freeShip = false, giftTier = null;
+    let discount = 0, giftTier = null;
+    let freeShip = STORE_CONFIG.freeDelivery !== false && subtotal > 0;
     if (subtotal > 0) {
       TIERS.forEach((o) => {
         if (subtotal >= o.min) {
@@ -193,7 +254,7 @@
     box.hidden = false;
     const msg = t.next
       ? `Add <b>${inr(t.next.min - t.subtotal)}</b> more to unlock <b>${esc(t.next.title)}</b>`
-      : `🎉 <b>All rewards unlocked!</b> Enjoy your free delivery &amp; gifts.`;
+      : `🎉 <b>All rewards unlocked!</b> Enjoy your free gifts.`;
     const pct = Math.min(t.subtotal / MAX_TIER * 100, 100);
     const marks = TIERS.map((o) => {
       const on = t.subtotal >= o.min;
@@ -230,23 +291,53 @@
       </div>`).join("");
   }
 
+  /* ---------- Payment: UPI (extra discount) or Cash on Delivery ---------- */
+  const upiDiscountAmount = (total) => Math.round(total * (STORE_CONFIG.upiDiscountPercent || 0) / 100);
+  function payInfo(method, t) {
+    t = t || computeTotals();
+    const upiDiscount = method === "UPI" ? upiDiscountAmount(t.total) : 0;
+    return { method, upiDiscount, payable: Math.max(t.total - upiDiscount, 0) };
+  }
+  function selectedMethod() {
+    const r = $('#checkoutForm input[name="payMethod"]:checked');
+    return r ? r.value : "UPI";
+  }
+  function syncPayUI() {
+    const upiOk = !!STORE_CONFIG.upiId, codOk = STORE_CONFIG.codEnabled !== false;
+    const upi = $('#checkoutForm input[value="UPI"]'), cod = $('#checkoutForm input[value="COD"]');
+    upi.disabled = !upiOk; cod.disabled = !codOk;
+    $("#optUpi").classList.toggle("off", !upiOk); $("#optCod").classList.toggle("off", !codOk);
+    $("#optCod").hidden = !codOk;
+    const pct = STORE_CONFIG.upiDiscountPercent || 0;
+    $("#upiTag").hidden = !(pct > 0 && upiOk);
+    $("#upiTag").textContent = "Extra " + pct + "% OFF";
+    if ((upi.checked && !upiOk) && codOk) cod.checked = true;
+    if ((cod.checked && !codOk) && upiOk) upi.checked = true;
+    $("#placeBtn").textContent = selectedMethod() === "COD" ? "Place Order (Cash on Delivery)" : "Continue to UPI Payment";
+  }
   function renderCheckoutSummary() {
-    const t = computeTotals();
-    const gifts = pickGifts(t.giftTier);
+    const t = computeTotals(), m = selectedMethod(), pi = payInfo(m, t);
+    const gifts = pickGifts(t.giftTier), pct = STORE_CONFIG.upiDiscountPercent || 0;
     $("#coSummary").innerHTML =
       `<div class="row"><span>Items (${cartCountTotal()})</span><span>${inr(t.subtotal)}</span></div>` +
       (t.discount ? `<div class="row ok"><span>Offer discount</span><span>-${inr(t.discount)}</span></div>` : "") +
+      (pi.upiDiscount ? `<div class="row ok"><span>UPI discount (${pct}%)</span><span>-${inr(pi.upiDiscount)}</span></div>` : "") +
       `<div class="row"><span>Delivery</span><span class="${t.freeShip ? "ok" : ""}">${t.freeShip ? "FREE" : "Confirmed at verification"}</span></div>` +
       (gifts.length ? `<div class="row ok"><span>Free gifts</span><span>${esc(gifts.join(" + "))}</span></div>` : "") +
-      `<div class="row total"><span>Total</span><span>${inr(t.total)}</span></div>`;
+      `<div class="row total"><span>${m === "COD" ? "To pay on delivery" : "To pay by UPI"}</span><span>${inr(pi.payable)}</span></div>`;
+    syncPayUI();
   }
 
   function initOffers() {
     const fill = (el, html, times) => { if (!el) return; const half = html.repeat(times); el.innerHTML = half + half; };
     const grid = $("#offerGrid");
-    if (grid) grid.innerHTML = TIERS.map((o) =>
-      `<div class="offer reveal"><span class="o-min">Above ${inr(o.min)}</span><h3>${esc(o.title)}</h3><p>${esc(o.desc)}</p></div>`).join("");
-    fill($("#tickerTrack"), TIERS.map((o) => `<span><b>✦</b>${esc(o.title)} · from ${inr(o.min)}</span>`).join(""), 3);
+    const bonus = typeof BONUS_OFFERS !== "undefined" ? BONUS_OFFERS : [];
+    if (grid) grid.innerHTML =
+      bonus.map((o) => `<div class="offer bonus reveal"><span class="o-min">${esc(o.label)}</span><h3>${esc(o.title)}</h3><p>${esc(o.desc)}</p></div>`).join("") +
+      TIERS.map((o) => `<div class="offer reveal"><span class="o-min">Above ${inr(o.min)}</span><h3>${esc(o.title)}</h3><p>${esc(o.desc)}</p></div>`).join("");
+    fill($("#tickerTrack"),
+      bonus.map((o) => `<span><b>✦</b>${esc(o.title)} · ${esc(o.label)}</span>`).join("") +
+      TIERS.map((o) => `<span><b>✦</b>${esc(o.title)} · from ${inr(o.min)}</span>`).join(""), 3);
     const words = ["ORIGINALS", "POW!", "COLLECT", "BAM!", "OTAKU", "ZAP!", "MANGA", "ANIME"];
     fill($("#bandTrack"), words.map((w, i) => `<span class="${i % 2 ? "out" : ""}">${w}</span><span>✦</span>`).join(""), 2);
   }
@@ -259,7 +350,13 @@
     $("#discRow").hidden = !t.discount;
     $("#cartDiscount").textContent = "-" + inr(t.discount);
     $("#shipVal").textContent = lines.length === 0 ? "—" : (t.freeShip ? "FREE 🎉" : "At verification");
-    $("#shippingNote").textContent = t.freeShip ? "Free delivery unlocked — no shipping charges." : "Shipping: " + STORE_CONFIG.shippingText;
+    $("#shippingNote").textContent = t.freeShip ? "Free delivery on every order." : "Shipping: " + STORE_CONFIG.shippingText;
+    const hint = $("#upiHint"), pct = STORE_CONFIG.upiDiscountPercent || 0;
+    if (lines.length && pct > 0 && STORE_CONFIG.upiId) {
+      const save = upiDiscountAmount(t.total);
+      hint.hidden = false;
+      hint.innerHTML = `⚡ Pay by UPI at checkout and save an extra <b>${inr(save)}</b> (${pct}% off) → <b>${inr(t.total - save)}</b>`;
+    } else hint.hidden = true;
     const gifts = pickGifts(t.giftTier);
     $("#giftRow").hidden = !t.giftTier;
     if (t.giftTier) $("#giftRow").innerHTML = "🎁 <b>Free gift:</b> " + esc(giftSummary(t.giftTier)) + " (picked at random when you order)";
@@ -360,11 +457,11 @@
       <p>We deliver across India through trusted courier partners.</p>
       <ul>
         <li>Every order is stock-verified by our team before packing.</li>
-        <li>Shipping charges are calculated and confirmed on WhatsApp during verification.</li>
+        <li>Delivery is free on every order.</li>
         <li>Orders are typically dispatched within 2–4 working days after you approve.</li>
         <li>Delivery usually takes 4–8 working days depending on your location.</li>
         <li>Tracking details are shared on WhatsApp once your order ships.</li>
-        <li>Payment: UPI after your order is approved. Cash on Delivery is coming soon.</li>
+        <li>Payment: pay by UPI (extra 5% off) or choose Cash on Delivery.</li>
       </ul>
       <p class="muted">Timelines are estimates and may vary due to courier delays or remote pincodes.</p>`,
     returns: `
@@ -385,6 +482,7 @@
       <ul>
         <li>Order details: your name, phone number, delivery address, order note and the items in your cart.</li>
         <li>Partly filled orders: if you start filling in the order form, we may save what you entered so we can help you finish the order.</li>
+        <li>Payment: the payment method you choose and the UPI reference (UTR) if you enter it. We never see your UPI PIN or bank details; UPI payments go straight to our UPI ID through your own UPI app.</li>
         <li>Reviews: your name, comment, rating and any photos you choose to upload.</li>
         <li>Your cart is saved in your own browser (local storage) so it is still there when you return.</li>
       </ul>
@@ -397,9 +495,9 @@
       <h3>Terms &amp; Conditions</h3>
       <p class="muted">Last updated: November 2026</p>
       <ul>
-        <li><strong>Orders:</strong> sending an order on WhatsApp is a request to buy. It becomes confirmed only after we verify stock and you approve packing.</li>
+        <li><strong>Orders:</strong> sending an order on WhatsApp is a request to buy. It becomes confirmed after we verify stock. If any item is unavailable we will tell you and refund any UPI payment for it.</li>
         <li><strong>Prices:</strong> all prices are in Indian Rupees (₹). We may correct pricing or stock errors and will tell you before packing.</li>
-        <li><strong>Payment:</strong> no payment is taken when you send the order. We currently accept UPI after approval. Cash on Delivery is coming soon.</li>
+        <li><strong>Payment:</strong> you can pay by UPI (scan the QR code or use your UPI app) and get an extra 5% off, or choose Cash on Delivery, which does not get the UPI discount. If an item turns out to be unavailable, we refund any UPI payment for it in full.</li>
         <li><strong>Products:</strong> we currently sell general anime-inspired merchandise. Items are not official licensed products unless the product page says so. Photos are for illustration and small colour or finish differences can occur.</li>
         <li><strong>Offers and gifts:</strong> offers apply automatically based on your cart value. Free gifts such as keychains, stickers and mystery items are chosen at random from available stock. We may change or end offers at any time.</li>
         <li><strong>Shipping and returns:</strong> please read our Shipping Policy and Return Policy.</li>
@@ -447,9 +545,10 @@
     return "OO-" + id;
   }
 
-  function buildOrderText(orderId, data) {
+  function buildOrderText(orderId, data, extra = {}) {
     const lines = cartLines();
     const t = computeTotals();
+    const method = extra.method || data.payMethod || "COD", pi = payInfo(method, t), pct = STORE_CONFIG.upiDiscountPercent || 0;
     const gifts = pickGifts(t.giftTier);
     const items = lines.map((l, i) => `${i + 1}. ${l.name}\n   ${l.qty} x ${inr(l.price)} = ${inr(l.price * l.qty)}`).join("\n");
     return [
@@ -461,9 +560,14 @@
       ``,
       `*Subtotal:* ${inr(t.subtotal)}`,
       ...(t.discount ? [`*Offer Discount:* -${inr(t.discount)}`] : []),
-      `*Delivery:* ${t.freeShip ? "FREE (offer applied)" : STORE_CONFIG.shippingText}`,
+      ...(pi.upiDiscount ? [`*UPI Discount (${pct}%):* -${inr(pi.upiDiscount)}`] : []),
+      `*Delivery:* ${t.freeShip ? "FREE" : STORE_CONFIG.shippingText}`,
       ...(gifts.length ? [`*Free Gifts:* ${gifts.join(" + ")}`] : []),
-      `*Total (payable only after approval):* ${inr(t.total)}`,
+      `*Total:* ${inr(pi.payable)}`,
+      method === "COD"
+        ? `*Payment:* Cash on Delivery - ${inr(pi.payable)} to pay on delivery`
+        : (extra.paid ? `*Payment:* UPI - ${inr(pi.payable)} PAID to ${STORE_CONFIG.upiId}` : `*Payment:* UPI - ${inr(pi.payable)} (to be paid)`),
+      ...(method === "UPI" && extra.paid ? [`*UTR / Ref:* ${extra.utr ? extra.utr : "I will share the payment screenshot"}`] : []),
       ``,
       `*Customer Details*`,
       `Name: ${data.name.trim()}`,
@@ -471,7 +575,7 @@
       `Address: ${data.street.trim()}, Landmark: ${data.landmark.trim()}, ${data.city.trim()}, ${data.state.trim()} - ${data.pincode.trim()}`,
       `Note: ${data.note && data.note.trim() ? data.note.trim() : "None"}`,
       ``,
-      `*Notice:* No payment has been made. Payment will not be processed until admin verifies stock availability and takes my approval to pack the order.`
+      `*Notice:* Please verify stock availability. If any item is unavailable, please remove it${method === "UPI" ? " and refund that amount to my UPI" : ""}.`
     ].join("\n");
   }
 
@@ -492,10 +596,11 @@
   /* ---------- Google Sheet order log ---------- */
   // Every checkout gets one Order ID. The row in the sheet is created when the customer has
   // typed a valid name + phone, then upgraded: Details entered -> Copied -> Submitted -> Redirected.
-  const RANK = { lead: 1, copied: 2, submitted: 3, redirected: 4 };
+  const RANK = { lead: 1, copied: 2, upiPending: 3, submitted: 4, redirected: 5 };
   const STATUS_TEXT = {
     lead: "Details entered - NOT submitted",
     copied: "Copied summary - not sent yet",
+    upiPending: "UPI payment pending - QR shown",
     submitted: "Submitted - opening WhatsApp",
     redirected: "Redirected to WhatsApp",
     redirectedSame: "Redirected to WhatsApp (same tab)"
@@ -507,17 +612,19 @@
       .then(() => true).catch(() => false);
   }
   function ensureOrderId() { if (!state.pendingOrderId) state.pendingOrderId = generateOrderId(); return state.pendingOrderId; }
-  function logOrder(kind, data, orderId) {
-    if (!STORE_CONFIG.sheetWebhookUrl || state.cart.length === 0) return;
+  function logOrder(kind, data, orderId, extra = {}) {
+    if (!STORE_CONFIG.sheetWebhookUrl || cartLines().length === 0) return;
     const t = computeTotals(), gifts = pickGifts(t.giftTier);
+    const method = extra.method || data.payMethod || "UPI", pi = payInfo(method, t);
     postToSheet({
       type: "order", orderId, rank: RANK[kind === "redirectedSame" ? "redirected" : kind], status: STATUS_TEXT[kind],
       name: (data.name || "").trim(), phone: (data.phone || "").trim(), street: (data.street || "").trim(),
       landmark: (data.landmark || "").trim(), city: (data.city || "").trim(), state: (data.state || "").trim(),
       pincode: (data.pincode || "").trim(), note: (data.note || "").trim(),
       items: cartLines().map((l) => l.name + " x" + l.qty + " (" + inr(l.price * l.qty) + ")").join("; "),
-      itemCount: cartCountTotal(), subtotal: t.subtotal, discount: t.discount,
-      delivery: t.freeShip ? "FREE" : "Confirmed at verification", gifts: gifts.join(" + "), total: t.total,
+      itemCount: cartCountTotal(), subtotal: t.subtotal, discount: t.discount, upiDiscount: pi.upiDiscount,
+      delivery: t.freeShip ? "FREE" : "Confirmed at verification", gifts: gifts.join(" + "), total: pi.payable,
+      paymentMethod: method === "COD" ? "COD" : "UPI", utr: (extra.utr || "").trim(),
       page: location.origin + location.pathname
     });
   }
@@ -530,41 +637,95 @@
   }
   function flushLead() {
     clearTimeout(leadTimer);
-    if (!$("#checkoutModal").classList.contains("open") || state.cart.length === 0) return;
+    if (!$("#checkoutModal").classList.contains("open") || cartLines().length === 0) return;
     const d = getFormData($("#checkoutForm"));
     if (leadReady(d)) logOrder("lead", d, ensureOrderId());
   }
 
   function submitOrder(e) {
     e.preventDefault();
-    if (state.cart.length === 0) { toast("Your cart is empty"); return; }
+    pruneCart();
+    if (cartLines().length === 0) { toast("Your cart is empty"); return; }
     const form = e.currentTarget;
     if (!validateForm(form)) return;
+    const orderId = ensureOrderId(), data = getFormData(form), method = data.payMethod === "COD" ? "COD" : "UPI";
+    if (method === "UPI") {
+      if (!STORE_CONFIG.upiId) { toast("UPI is not available right now. Please choose Cash on Delivery."); return; }
+      openPayment(orderId, data);
+      return;
+    }
+    if (STORE_CONFIG.codEnabled === false) { toast("Cash on Delivery is not available right now."); return; }
+    finalizeOrder(orderId, data, "COD", "");
+  }
 
-    const orderId = ensureOrderId();
-    const data = getFormData(form);
-    const text = buildOrderText(orderId, data);
+  // Saves the order to the sheet, then opens WhatsApp with the full order message.
+  function finalizeOrder(orderId, data, method, utr) {
+    const extra = { method, utr, paid: method === "UPI" };
+    const text = buildOrderText(orderId, data, extra);
     state.lastOrderText = text;
-    logOrder("submitted", data, orderId);              // saved BEFORE WhatsApp opens
+    logOrder("submitted", data, orderId, extra);        // saved BEFORE WhatsApp opens
     const url = "https://wa.me/" + STORE_CONFIG.whatsappNumber + "?text=" + encodeURIComponent(text);
     const win = window.open(url, "_blank");
     if (win) { try { win.opener = null; } catch (err) { /* ignore */ } }
-    logOrder(win ? "redirected" : "redirectedSame", data, orderId);
+    logOrder(win ? "redirected" : "redirectedSame", data, orderId, extra);
     if (!win) setTimeout(() => { window.location.href = url; }, 250); // popup blocked fallback
 
     toast(`Order ${orderId} sent to WhatsApp ✓`);
-    state.pendingOrderId = null;
+    state.pendingOrderId = null; state.pay = null;
     state.cart = []; state.giftPick = null; saveCart(); renderCart();
-    form.reset();
+    $("#checkoutForm").reset(); syncPayUI();
     closeAll();
+  }
+
+  /* ---------- UPI payment screen (QR + pay button) ---------- */
+  function upiLink(amount, orderId) {
+    const c = STORE_CONFIG, enc = encodeURIComponent;
+    return "upi://pay?pa=" + c.upiId.trim() + "&pn=" + enc(c.upiName || c.brandName) + "&am=" + Number(amount).toFixed(2) + "&cu=INR&tn=" + enc("Order " + orderId);
+  }
+  function openPayment(orderId, data) {
+    const t = computeTotals(), pi = payInfo("UPI", t), pct = STORE_CONFIG.upiDiscountPercent || 0;
+    state.pay = { orderId, data, payable: pi.payable };
+    const link = upiLink(pi.payable, orderId);
+    let qr = "";
+    try { qr = window.OOQR ? window.OOQR.svg(link, { size: 240, label: "UPI payment QR code for " + inr(pi.payable) }) : ""; } catch (err) { qr = ""; }
+    $("#payContent").innerHTML = `
+      <h3>Pay ${inr(pi.payable)} by UPI</h3>
+      <p class="muted small">Order ${esc(orderId)}${pi.upiDiscount ? ` · includes your extra ${pct}% UPI discount (−${inr(pi.upiDiscount)})` : ""}</p>
+      <div class="pay-qr">${qr || "<p>QR code unavailable. Use the button or UPI ID below.</p>"}</div>
+      <p class="pay-steps">Scan with any UPI app (GPay, PhonePe, Paytm, BHIM). The amount is filled in for you.</p>
+      <a class="btn btn-primary block" href="${esc(link)}" id="payOpen">Open UPI app to pay ${inr(pi.payable)}</a>
+      <div class="pay-id"><span>UPI ID: <b>${esc(STORE_CONFIG.upiId)}</b></span><button type="button" class="chip" id="payCopy">Copy</button></div>
+      <label class="utr">UPI reference / UTR (optional)
+        <input type="text" id="payUtr" maxlength="30" autocomplete="off" placeholder="12-digit number from your UPI app">
+      </label>
+      <button type="button" class="btn btn-primary block" id="payDone">I've paid — send order on WhatsApp</button>
+      <button type="button" class="btn btn-ghost block" id="payBack">← Change payment method</button>
+      <p class="consent">After paying, tap the button above so we receive your order on WhatsApp. We verify stock and confirm there. If an item is unavailable, we refund the amount for it.</p>`;
+    logOrder("upiPending", data, orderId, { method: "UPI" });
+    closeModal($("#checkoutModal"));
+    openModal("payModal");
+  }
+  function bindPayment() {
+    $("#payContent").addEventListener("click", async (e) => {
+      if (e.target.closest("#payBack")) { closeModal($("#payModal")); renderCheckoutSummary(); openModal("checkoutModal"); return; }
+      if (e.target.closest("#payCopy")) {
+        try { await navigator.clipboard.writeText(STORE_CONFIG.upiId); toast("UPI ID copied"); } catch (err) { toast("Long-press the UPI ID to copy"); }
+        return;
+      }
+      if (e.target.closest("#payDone") && state.pay) {
+        const utr = ($("#payUtr").value || "").trim();
+        finalizeOrder(state.pay.orderId, state.pay.data, "UPI", utr);
+      }
+    });
+    $$('#checkoutForm input[name="payMethod"]').forEach((r) => r.addEventListener("change", renderCheckoutSummary));
   }
 
   async function copySummary() {
     const form = $("#checkoutForm");
-    if (state.cart.length === 0) { toast("Your cart is empty"); return; }
+    if (cartLines().length === 0) { toast("Your cart is empty"); return; }
     if (!validateForm(form)) return;
     const copyId = ensureOrderId(), copyData = getFormData(form);
-    const text = buildOrderText(copyId, copyData);
+    const text = buildOrderText(copyId, copyData, { method: copyData.payMethod === "COD" ? "COD" : "UPI", paid: false });
     logOrder("copied", copyData, copyId);
     try {
       await navigator.clipboard.writeText(text);
@@ -621,7 +782,8 @@
       else if (t.dataset.remove) removeItem(+t.dataset.remove);
     });
     $("#checkoutBtn").addEventListener("click", () => {
-      if (state.cart.length === 0) return;
+      pruneCart();
+      if (cartLines().length === 0) return;
       renderCheckoutSummary();
       ensureOrderId();
       closeDrawer(); openModal("checkoutModal");
@@ -651,6 +813,7 @@
     document.addEventListener("visibilitychange", () => { if (document.hidden) flushLead(); });
     window.addEventListener("pagehide", flushLead);
     bindGallery();
+    bindPayment();
     // digits only
     ["phone", "pincode"].forEach((n) => {
       form.elements[n].addEventListener("input", (e) => { e.target.value = e.target.value.replace(/\D/g, ""); });
@@ -689,8 +852,9 @@
           }
         }))
       };
+      const old = document.getElementById("ld-products"); if (old) old.remove();
       const s = document.createElement("script");
-      s.type = "application/ld+json"; s.textContent = JSON.stringify(data);
+      s.id = "ld-products"; s.type = "application/ld+json"; s.textContent = JSON.stringify(data);
       document.head.appendChild(s);
     } catch (e) { /* schema is optional */ }
   }
@@ -729,6 +893,10 @@
 
   /* ---------- Init ---------- */
   initStoreInfo();
+  applyCachedProducts();
+  if (!STORE_CONFIG.sheetWebhookUrl) pruneCart();
+  renderPills();
+  syncCategoryUI();
   injectProductSchema();
   initOffers();
   bindEvents();
@@ -736,4 +904,5 @@
   renderCart();
   observeReveals();
   initNudge();
+  loadRemoteProducts();
 })();
