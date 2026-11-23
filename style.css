@@ -580,3 +580,10 @@ h1, h2, h3, h4, .brand { font-family: var(--display); letter-spacing: -0.02em; }
   .offer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pay-qr { padding: 8px; }
 }
+
+/* v3.1 thank-you screen */
+.thanks { text-align: center; }
+.thanks .tick { width: 64px; height: 64px; margin: 6px auto 12px; display: grid; place-items: center; font-size: 2rem; font-weight: 800; color: #fff; background: #1a9e55; border: 2px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); border-radius: 50%; }
+.thanks p { margin: 8px 0; }
+.thanks .btn { margin-top: 10px; }
+#payContent .btn + .btn, #payContent .pay-qr + .pay-id { margin-top: 10px; }

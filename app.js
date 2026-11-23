@@ -250,7 +250,7 @@
 
   function renderProgress(t) {
     const box = $("#offerProgress");
-    if (t.subtotal <= 0) { box.hidden = true; box.innerHTML = ""; return; }
+    if (t.subtotal <= 0 || !TIERS.length) { box.hidden = true; box.innerHTML = ""; return; }
     box.hidden = false;
     const msg = t.next
       ? `Add <b>${inr(t.next.min - t.subtotal)}</b> more to unlock <b>${esc(t.next.title)}</b>`
@@ -487,7 +487,7 @@
         <li>Your cart is saved in your own browser (local storage) so it is still there when you return.</li>
       </ul>
       <p><strong>How we use it:</strong> to verify stock, pack and deliver your order, to contact you on WhatsApp about your order or if you need help completing it, to show approved reviews, and to improve the store.</p>
-      <p><strong>Where it is stored:</strong> order and review records are kept in Google Sheets and Google Drive managed by us. When you send an order, WhatsApp (Meta) delivers the message to us. We share your name, phone and address with courier partners only to deliver your order. We do not sell your data.</p>
+      <p><strong>Where it is stored:</strong> order and review records are kept in Google Sheets and Google Drive managed by us. If you message us on WhatsApp, WhatsApp (Meta) delivers the message to us. We share your name, phone and address with courier partners only to deliver your order. We do not sell your data.</p>
       <p><strong>Your choices:</strong> you can ask us to correct or delete your details or a review by emailing ${esc(STORE_CONFIG.email)}. We keep order records for as long as needed for delivery, support and legal or tax requirements.</p>
       <p><strong>Public content:</strong> reviews and photos you submit may be shown publicly on this website once approved.</p>
       <p class="muted">We may update this policy from time to time. Continued use of the site means you accept the updated policy.</p>`,
@@ -495,11 +495,11 @@
       <h3>Terms &amp; Conditions</h3>
       <p class="muted">Last updated: November 2026</p>
       <ul>
-        <li><strong>Orders:</strong> sending an order on WhatsApp is a request to buy. It becomes confirmed after we verify stock. If any item is unavailable we will tell you and refund any UPI payment for it.</li>
+        <li><strong>Orders:</strong> placing an order is a request to buy. It becomes confirmed after we verify your payment and stock. If any item is unavailable we will tell you and refund any UPI payment for it.</li>
         <li><strong>Prices:</strong> all prices are in Indian Rupees (₹). We may correct pricing or stock errors and will tell you before packing.</li>
         <li><strong>Payment:</strong> you can pay by UPI (scan the QR code or use your UPI app) and get an extra 5% off, or choose Cash on Delivery, which does not get the UPI discount. If an item turns out to be unavailable, we refund any UPI payment for it in full.</li>
         <li><strong>Products:</strong> we currently sell general anime-inspired merchandise. Items are not official licensed products unless the product page says so. Photos are for illustration and small colour or finish differences can occur.</li>
-        <li><strong>Offers and gifts:</strong> offers apply automatically based on your cart value. Free gifts such as keychains, stickers and mystery items are chosen at random from available stock. We may change or end offers at any time.</li>
+        <li><strong>Offers:</strong> delivery is free on every order, and paying by UPI gives an extra discount (not on Cash on Delivery). We may change or end offers at any time.</li>
         <li><strong>Shipping and returns:</strong> please read our Shipping Policy and Return Policy.</li>
         <li><strong>Reviews:</strong> by submitting a review or photo you allow us to display it on this site. We may remove content that is abusive, unrelated or unsafe.</li>
         <li><strong>Liability:</strong> to the extent allowed by law, our liability for any order is limited to the amount paid for that order.</li>
@@ -601,9 +601,9 @@
     lead: "Details entered - NOT submitted",
     copied: "Copied summary - not sent yet",
     upiPending: "UPI payment pending - QR shown",
-    submitted: "Submitted - opening WhatsApp",
-    redirected: "Redirected to WhatsApp",
-    redirectedSame: "Redirected to WhatsApp (same tab)"
+    submitted: "Order placed - check payment",
+    redirected: "Customer says paid - verify and deliver",
+    redirectedSame: "Customer says paid - verify and deliver"
   };
   function postToSheet(payload, keepalive = true) {
     const url = STORE_CONFIG.sheetWebhookUrl;
@@ -617,7 +617,7 @@
     const t = computeTotals(), gifts = pickGifts(t.giftTier);
     const method = extra.method || data.payMethod || "UPI", pi = payInfo(method, t);
     postToSheet({
-      type: "order", orderId, rank: RANK[kind === "redirectedSame" ? "redirected" : kind], status: STATUS_TEXT[kind],
+      type: "order", orderId, rank: RANK[kind === "redirectedSame" ? "redirected" : kind], status: extra.status || STATUS_TEXT[kind],
       name: (data.name || "").trim(), phone: (data.phone || "").trim(), street: (data.street || "").trim(),
       landmark: (data.landmark || "").trim(), city: (data.city || "").trim(), state: (data.state || "").trim(),
       pincode: (data.pincode || "").trim(), note: (data.note || "").trim(),
@@ -658,23 +658,34 @@
     finalizeOrder(orderId, data, "COD", "");
   }
 
-  // Saves the order to the sheet, then opens WhatsApp with the full order message.
+  // COD: save the order and show the confirmation screen (no WhatsApp redirect).
   function finalizeOrder(orderId, data, method, utr) {
-    const extra = { method, utr, paid: method === "UPI" };
-    const text = buildOrderText(orderId, data, extra);
-    state.lastOrderText = text;
-    logOrder("submitted", data, orderId, extra);        // saved BEFORE WhatsApp opens
-    const url = "https://wa.me/" + STORE_CONFIG.whatsappNumber + "?text=" + encodeURIComponent(text);
-    const win = window.open(url, "_blank");
-    if (win) { try { win.opener = null; } catch (err) { /* ignore */ } }
-    logOrder(win ? "redirected" : "redirectedSame", data, orderId, extra);
-    if (!win) setTimeout(() => { window.location.href = url; }, 250); // popup blocked fallback
+    const extra = { method, utr, status: method === "COD" ? "COD order placed - confirm and deliver" : undefined };
+    state.lastOrderText = buildOrderText(orderId, data, extra);
+    logOrder("submitted", data, orderId, extra);
+    logOrder("redirected", data, orderId, extra);
+    showThanks(orderId, data, method);
+  }
 
-    toast(`Order ${orderId} sent to WhatsApp ✓`);
+  function showThanks(orderId, data, method) {
+    const phone = esc((data.phone || "").trim());
+    const paid = method === "UPI";
+    const wa = "https://wa.me/" + STORE_CONFIG.whatsappNumber + "?text=" + encodeURIComponent("Hi OtakuOriginals, my order ID is " + orderId + ".");
+    $("#payContent").innerHTML = `
+      <div class="thanks">
+        <div class="tick" aria-hidden="true">✓</div>
+        <h3>${paid ? "Thank you! Payment submitted" : "Thank you! Order placed"}</h3>
+        <p class="muted">Order ID <b>${esc(orderId)}</b></p>
+        <p>${paid ? "We will check that your payment has arrived in our account. " : ""}<b>Our admin will reach out to you on ${phone} shortly and share the delivery information.</b></p>
+        <p class="muted small">Please keep your phone handy. If you need anything, message us on WhatsApp with your order ID.</p>
+        <a class="btn btn-ghost block" href="${esc(wa)}" target="_blank" rel="noopener">Message us on WhatsApp</a>
+        <button type="button" class="btn btn-primary block" id="payClose">Continue shopping</button>
+      </div>`;
     state.pendingOrderId = null; state.pay = null;
     state.cart = []; state.giftPick = null; saveCart(); renderCart();
     $("#checkoutForm").reset(); syncPayUI();
-    closeAll();
+    closeModal($("#checkoutModal"));
+    openModal("payModal");
   }
 
   /* ---------- UPI payment screen (QR + pay button) ---------- */
@@ -684,40 +695,64 @@
   }
   function openPayment(orderId, data) {
     const t = computeTotals(), pi = payInfo("UPI", t), pct = STORE_CONFIG.upiDiscountPercent || 0;
-    state.pay = { orderId, data, payable: pi.payable };
+    state.pay = { orderId, data, payable: pi.payable, opened: false };
     const link = upiLink(pi.payable, orderId);
     let qr = "";
     try { qr = window.OOQR ? window.OOQR.svg(link, { size: 240, label: "UPI payment QR code for " + inr(pi.payable) }) : ""; } catch (err) { qr = ""; }
     $("#payContent").innerHTML = `
       <h3>Pay ${inr(pi.payable)} by UPI</h3>
       <p class="muted small">Order ${esc(orderId)}${pi.upiDiscount ? ` · includes your extra ${pct}% UPI discount (−${inr(pi.upiDiscount)})` : ""}</p>
+      <a class="btn btn-primary block" href="${esc(link)}" id="payOpen">Pay ${inr(pi.payable)} with UPI app</a>
+      <p class="pay-steps">Opens GPay, PhonePe, Paytm or any UPI app on your phone with the amount filled in.</p>
+      <p class="pay-steps"><b>On a computer?</b> Scan this QR with any UPI app:</p>
       <div class="pay-qr">${qr || "<p>QR code unavailable. Use the button or UPI ID below.</p>"}</div>
-      <p class="pay-steps">Scan with any UPI app (GPay, PhonePe, Paytm, BHIM). The amount is filled in for you.</p>
-      <a class="btn btn-primary block" href="${esc(link)}" id="payOpen">Open UPI app to pay ${inr(pi.payable)}</a>
       <div class="pay-id"><span>UPI ID: <b>${esc(STORE_CONFIG.upiId)}</b></span><button type="button" class="chip" id="payCopy">Copy</button></div>
-      <label class="utr">UPI reference / UTR (optional)
-        <input type="text" id="payUtr" maxlength="30" autocomplete="off" placeholder="12-digit number from your UPI app">
-      </label>
-      <button type="button" class="btn btn-primary block" id="payDone">I've paid — send order on WhatsApp</button>
+      <button type="button" class="btn btn-ghost block" id="payPaid">I have already paid (scanned the QR)</button>
       <button type="button" class="btn btn-ghost block" id="payBack">← Change payment method</button>
-      <p class="consent">After paying, tap the button above so we receive your order on WhatsApp. We verify stock and confirm there. If an item is unavailable, we refund the amount for it.</p>`;
+      <p class="consent">Your order is saved when you tap Pay. We then check your payment, and our admin contacts you with delivery information. If an item is unavailable, we refund it.</p>`;
     logOrder("upiPending", data, orderId, { method: "UPI" });
     closeModal($("#checkoutModal"));
     openModal("payModal");
   }
+  // Shown when the customer comes back from the UPI app
+  function showPayCheck() {
+    const p = state.pay; if (!p) return;
+    $("#payContent").innerHTML = `
+      <h3>Did your payment go through?</h3>
+      <p class="muted">Order <b>${esc(p.orderId)}</b> · ${inr(p.payable)}</p>
+      <button type="button" class="btn btn-primary block" id="payYes">Yes, I have paid</button>
+      <button type="button" class="btn btn-ghost block" id="payNo">No, try again</button>
+      <label class="utr">UPI reference / UTR (optional, helps us find your payment)
+        <input type="text" id="payUtr" maxlength="30" autocomplete="off" placeholder="12-digit number from your UPI app">
+      </label>`;
+  }
   function bindPayment() {
     $("#payContent").addEventListener("click", async (e) => {
       if (e.target.closest("#payBack")) { closeModal($("#payModal")); renderCheckoutSummary(); openModal("checkoutModal"); return; }
+      if (e.target.closest("#payClose")) { closeModal($("#payModal")); return; }
       if (e.target.closest("#payCopy")) {
         try { await navigator.clipboard.writeText(STORE_CONFIG.upiId); toast("UPI ID copied"); } catch (err) { toast("Long-press the UPI ID to copy"); }
         return;
       }
-      if (e.target.closest("#payDone") && state.pay) {
-        const utr = ($("#payUtr").value || "").trim();
+      if (e.target.closest("#payOpen") && state.pay) {   // link still opens the UPI app; we save the order first
+        state.pay.opened = true;
+        logOrder("submitted", state.pay.data, state.pay.orderId, { method: "UPI", status: "UPI app opened - check payment" });
+        return;
+      }
+      if (e.target.closest("#payPaid") && state.pay) { showPayCheck(); return; }
+      if (e.target.closest("#payNo") && state.pay) { openPayment(state.pay.orderId, state.pay.data); return; }
+      if (e.target.closest("#payYes") && state.pay) {
+        const utr = (($("#payUtr") || {}).value || "").trim();
         finalizeOrder(state.pay.orderId, state.pay.data, "UPI", utr);
       }
     });
     $$('#checkoutForm input[name="payMethod"]').forEach((r) => r.addEventListener("change", renderCheckoutSummary));
+    // Coming back from the UPI app -> ask whether the payment went through
+    document.addEventListener("visibilitychange", () => {
+      const p = state.pay; if (!p || !p.opened) return;
+      if (document.hidden) p.wasHidden = true;
+      else if (p.wasHidden && $("#payOpen")) { p.wasHidden = false; showPayCheck(); }
+    });
   }
 
   async function copySummary() {
@@ -873,7 +908,7 @@
     if ($("#drawer").classList.contains("open") || $$(".modal.open").length) return;
     const t = computeTotals(), n = cartCountTotal();
     let msg = `🛒 You left <b>${n} item${n > 1 ? "s" : ""}</b> in your cart (${inr(t.total)}).`;
-    msg += t.next ? ` Add <b>${inr(t.next.min - t.subtotal)}</b> more to unlock <b>${esc(t.next.title)}</b>.` : " 🎉 All rewards unlocked!";
+    if (TIERS.length) msg += t.next ? ` Add <b>${inr(t.next.min - t.subtotal)}</b> more to unlock <b>${esc(t.next.title)}</b>.` : " 🎉 All rewards unlocked!";
     $("#nudgeText").innerHTML = msg;
     const el = $("#nudge"); el.hidden = false; requestAnimationFrame(() => el.classList.add("show"));
   }

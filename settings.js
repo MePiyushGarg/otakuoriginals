@@ -12,7 +12,7 @@ Object.assign(STORE_CONFIG, {
   sheetWebhookUrl: "",
 
   // 2) Your UPI ID. Customers pay this ID. Example: "piyush@okhdfcbank" or "9115521711@ybl"
-  upiId: "",
+  upiId: "itspiyushgarg@sbi",
 
   // 3) Name shown in the customer's UPI app when they pay
   upiName: "OtakuOriginals"
