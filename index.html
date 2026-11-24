@@ -45,7 +45,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=10">
 
   <!-- ============ ANALYTICS ============
        Paste your analytics code (Google Analytics / Cloudflare / Meta Pixel) right below this line.
@@ -305,8 +305,16 @@
       <div class="recs" id="cartRecs"></div>
     </div>
     <div class="drawer-foot" id="cartFoot">
+      <div class="code-box" id="codeBox" hidden>
+        <div class="code-applied" id="codeApplied" hidden></div>
+        <form class="code-form" id="codeForm" autocomplete="off">
+          <input type="text" id="codeInput" placeholder="Discount code" maxlength="20" autocapitalize="characters" spellcheck="false" aria-label="Discount code">
+          <button class="btn btn-ghost" type="submit" id="codeBtn">Apply</button>
+        </form>
+        <p class="code-msg" id="codeMsg" role="status"></p>
+      </div>
       <div class="row"><span>Subtotal</span><strong id="cartSubtotal">₹0</strong></div>
-      <div class="row disc" id="discRow" hidden><span>Offer discount</span><strong id="cartDiscount"></strong></div>
+      <div class="row disc" id="discRow" hidden><span>Discounts</span><strong id="cartDiscount"></strong></div>
       <div class="row"><span>Delivery</span><strong id="shipVal">—</strong></div>
       <div class="gift-line" id="giftRow" hidden></div>
       <div class="row total"><span>Total</span><strong id="cartTotal">₹0</strong></div>
@@ -469,10 +477,10 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="products.js?v=9"></script>
-  <script src="settings.js?v=9"></script>
-  <script src="qr.js?v=9"></script>
-  <script src="app.js?v=9"></script>
-  <script src="extras.js?v=9"></script>
+  <script src="products.js?v=10"></script>
+  <script src="settings.js?v=10"></script>
+  <script src="qr.js?v=10"></script>
+  <script src="app.js?v=10"></script>
+  <script src="extras.js?v=10"></script>
 </body>
 </html>

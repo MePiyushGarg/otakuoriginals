@@ -587,3 +587,13 @@ h1, h2, h3, h4, .brand { font-family: var(--display); letter-spacing: -0.02em; }
 .thanks p { margin: 8px 0; }
 .thanks .btn { margin-top: 10px; }
 #payContent .btn + .btn, #payContent .pay-qr + .pay-id { margin-top: 10px; }
+
+/* v3.3 discount code box */
+.code-box { margin-bottom: 10px; }
+.code-form { display: flex; gap: 8px; }
+.code-form input { flex: 1; min-width: 0; padding: 10px 12px; border: 2px solid var(--ink); background: #fff; font: inherit; text-transform: uppercase; letter-spacing: .06em; }
+.code-form .btn { padding: 10px 16px; }
+.code-applied { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; background: #e9f8ef; border: 2px dashed #1a9e55; font-size: .88rem; }
+.code-applied button { border: 0; background: none; color: var(--accent); font-weight: 700; cursor: pointer; text-decoration: underline; font: inherit; }
+.code-msg { font-size: .8rem; min-height: 1em; margin-top: 4px; color: var(--accent); }
+.code-msg.ok { color: #1a9e55; }

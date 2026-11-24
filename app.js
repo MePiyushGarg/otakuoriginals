@@ -204,6 +204,21 @@
   const MAX_TIER = TIERS.length ? TIERS[TIERS.length - 1].min : 1;
   const GIFTS = typeof GIFT_POOL !== "undefined" ? GIFT_POOL : { keychains: [], mystery: [] };
 
+  /* ---------- Discounts & codes ---------- */
+  const DISC_CACHE = "oo_discounts_v1", VOUCHER_KEY = "oo_voucher_v1";
+  state.discounts = [];
+  state.voucher = null;
+  try { state.voucher = JSON.parse(localStorage.getItem(VOUCHER_KEY)); } catch (e) { state.voucher = null; }
+  try { const c = JSON.parse(localStorage.getItem(DISC_CACHE)); if (Array.isArray(c)) state.discounts = c; } catch (e) { /* ignore */ }
+  const saveVoucher = () => { try { state.voucher ? localStorage.setItem(VOUCHER_KEY, JSON.stringify(state.voucher)) : localStorage.removeItem(VOUCHER_KEY); } catch (e) { /* ignore */ } };
+  function discAmount(d, subtotal) {
+    if (!d || subtotal <= 0 || subtotal < (d.min || 0)) return 0;
+    const a = d.type === "flat" ? d.value : Math.round(subtotal * d.value / 100);
+    return Math.max(0, Math.min(a, subtotal));
+  }
+  const discLabel = (d) => (d.type === "flat" ? inr(d.value) : d.value + "%") + " OFF";
+  const fmtDate = (s) => { const t = Date.parse(s); return t ? new Date(t).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : ""; };
+
   function computeTotals() {
     const subtotal = cartSubtotal();
     let discount = 0, giftTier = null;
@@ -218,7 +233,15 @@
       });
     }
     const next = subtotal > 0 ? TIERS.find((o) => o.min > subtotal) || null : null;
-    return { subtotal, discount, freeShip, giftTier, next, total: Math.max(subtotal - discount, 0) };
+    const dl = [];
+    if (subtotal > 0) {
+      state.discounts.filter((d) => d.autoApply).forEach((d) => { const a = discAmount(d, subtotal); if (a > 0) dl.push({ title: d.title, amount: a }); });
+      const v = state.voucher, a = v ? discAmount(v, subtotal) : 0;
+      if (a > 0) dl.push({ title: v.title + " (" + v.code + ")", amount: a, code: v.code });
+    }
+    discount = Math.min(subtotal, discount + dl.reduce((s, x) => s + x.amount, 0));
+    const codeUsed = dl.some((x) => x.code) ? state.voucher.code : "";
+    return { subtotal, discount, discountLines: dl, codeUsed, freeShip, giftTier, next, total: Math.max(subtotal - discount, 0) };
   }
   const unlockedCount = () => TIERS.filter((o) => cartSubtotal() >= o.min).length;
 
@@ -320,7 +343,7 @@
     const gifts = pickGifts(t.giftTier), pct = STORE_CONFIG.upiDiscountPercent || 0;
     $("#coSummary").innerHTML =
       `<div class="row"><span>Items (${cartCountTotal()})</span><span>${inr(t.subtotal)}</span></div>` +
-      (t.discount ? `<div class="row ok"><span>Offer discount</span><span>-${inr(t.discount)}</span></div>` : "") +
+      (t.discountLines.length ? t.discountLines.map((x) => `<div class="row ok"><span>${esc(x.title)}</span><span>-${inr(x.amount)}</span></div>`).join("") : (t.discount ? `<div class="row ok"><span>Offer discount</span><span>-${inr(t.discount)}</span></div>` : "")) +
       (pi.upiDiscount ? `<div class="row ok"><span>UPI discount (${pct}%)</span><span>-${inr(pi.upiDiscount)}</span></div>` : "") +
       `<div class="row"><span>Delivery</span><span class="${t.freeShip ? "ok" : ""}">${t.freeShip ? "FREE" : "Confirmed at verification"}</span></div>` +
       (gifts.length ? `<div class="row ok"><span>Free gifts</span><span>${esc(gifts.join(" + "))}</span></div>` : "") +
@@ -332,14 +355,74 @@
     const fill = (el, html, times) => { if (!el) return; const half = html.repeat(times); el.innerHTML = half + half; };
     const grid = $("#offerGrid");
     const bonus = typeof BONUS_OFFERS !== "undefined" ? BONUS_OFFERS : [];
+    const shown = state.discounts.filter((d) => d.autoApply || d.showOnSite);
+    const dText = (d) => d.description || ((d.min ? "On orders of " + inr(d.min) + " and above. " : "") + (d.end ? "Valid till " + fmtDate(d.end) + "." : ""));
     if (grid) grid.innerHTML =
       bonus.map((o) => `<div class="offer bonus reveal"><span class="o-min">${esc(o.label)}</span><h3>${esc(o.title)}</h3><p>${esc(o.desc)}</p></div>`).join("") +
+      shown.map((d) => `<div class="offer bonus reveal"><span class="o-min">${d.autoApply ? "Applied automatically" : "Use code " + esc(d.code)}</span><h3>${esc(discLabel(d))}</h3><p><b>${esc(d.title)}</b>${dText(d) ? "<br>" + esc(dText(d)) : ""}</p></div>`).join("") +
       TIERS.map((o) => `<div class="offer reveal"><span class="o-min">Above ${inr(o.min)}</span><h3>${esc(o.title)}</h3><p>${esc(o.desc)}</p></div>`).join("");
     fill($("#tickerTrack"),
       bonus.map((o) => `<span><b>✦</b>${esc(o.title)} · ${esc(o.label)}</span>`).join("") +
+      shown.map((d) => `<span><b>✦</b>${esc(discLabel(d))} · ${d.autoApply ? esc(d.title) : "code " + esc(d.code)}</span>`).join("") +
       TIERS.map((o) => `<span><b>✦</b>${esc(o.title)} · from ${inr(o.min)}</span>`).join(""), 3);
     const words = ["ORIGINALS", "POW!", "COLLECT", "BAM!", "OTAKU", "ZAP!", "MANGA", "ANIME"];
     fill($("#bandTrack"), words.map((w, i) => `<span class="${i % 2 ? "out" : ""}">${w}</span><span>✦</span>`).join(""), 2);
+  }
+
+  function renderCodeBox(t, hasItems) {
+    const v = state.voucher, box = $("#codeBox"); if (!box) return;
+    box.hidden = !hasItems;
+    $("#codeForm").hidden = !!v;
+    const ap = $("#codeApplied");
+    ap.hidden = !v;
+    if (v) {
+      const need = v.min && t.subtotal < v.min ? ` Add <b>${inr(v.min - t.subtotal)}</b> more to use it.` : "";
+      ap.innerHTML = `<span>🏷️ <b>${esc(v.code)}</b> · ${esc(discLabel(v))}${need}</span><button type="button" id="codeRemove">Remove</button>`;
+    }
+  }
+  const setCodeMsg = (m, ok) => { const el = $("#codeMsg"); if (!el) return; el.textContent = m || ""; el.className = "code-msg" + (ok ? " ok" : ""); };
+  async function applyCode(raw) {
+    const code = String(raw || "").trim().toUpperCase();
+    if (!code) { setCodeMsg("Enter a discount code."); return; }
+    if (!STORE_CONFIG.sheetWebhookUrl) { setCodeMsg("Discount codes are not available right now."); return; }
+    const btn = $("#codeBtn"); btn.disabled = true; btn.textContent = "Checking…"; setCodeMsg("");
+    try {
+      const r = await fetch(STORE_CONFIG.sheetWebhookUrl + "?action=validate&code=" + encodeURIComponent(code));
+      const d = await r.json();
+      if (d && d.ok && d.discount) {
+        state.voucher = d.discount; saveVoucher(); $("#codeInput").value = "";
+        setCodeMsg("Code applied!", true); renderCart(); if ($("#checkoutModal").classList.contains("open")) renderCheckoutSummary();
+      } else setCodeMsg((d && d.error) || "This code is not valid.");
+    } catch (e) { setCodeMsg("Could not check the code. Please try again."); }
+    btn.disabled = false; btn.textContent = "Apply";
+  }
+  function bindCode() {
+    $("#codeForm").addEventListener("submit", (e) => { e.preventDefault(); applyCode($("#codeInput").value); });
+    $("#codeApplied").addEventListener("click", (e) => {
+      if (e.target.closest("#codeRemove")) { state.voucher = null; saveVoucher(); setCodeMsg(""); renderCart(); }
+    });
+  }
+  async function loadDiscounts() {
+    if (!STORE_CONFIG.sheetWebhookUrl) return;
+    try {
+      const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 9000);
+      const r = await fetch(STORE_CONFIG.sheetWebhookUrl + "?action=discounts", { signal: ctl.signal });
+      clearTimeout(tm);
+      const d = await r.json();
+      if (!d || !d.ok || !Array.isArray(d.discounts)) return;
+      state.discounts = d.discounts;
+      try { localStorage.setItem(DISC_CACHE, JSON.stringify(d.discounts)); } catch (e) { /* ignore */ }
+      initOffers(); observeReveals(); renderCart();
+    } catch (e) { /* offline: keep cached */ }
+    // re-check a saved code so an expired one is not kept
+    if (state.voucher && state.voucher.code) {
+      try {
+        const r = await fetch(STORE_CONFIG.sheetWebhookUrl + "?action=validate&code=" + encodeURIComponent(state.voucher.code));
+        const d = await r.json();
+        if (d && d.ok && d.discount) state.voucher = d.discount; else if (d && d.ok === false) state.voucher = null;
+        saveVoucher(); renderCart();
+      } catch (e) { /* ignore */ }
+    }
   }
 
   function renderCart() {
@@ -349,6 +432,7 @@
     $("#cartSubtotal").textContent = inr(t.subtotal);
     $("#discRow").hidden = !t.discount;
     $("#cartDiscount").textContent = "-" + inr(t.discount);
+    renderCodeBox(t, lines.length > 0);
     $("#shipVal").textContent = lines.length === 0 ? "—" : (t.freeShip ? "FREE 🎉" : "At verification");
     $("#shippingNote").textContent = t.freeShip ? "Free delivery on every order." : "Shipping: " + STORE_CONFIG.shippingText;
     const hint = $("#upiHint"), pct = STORE_CONFIG.upiDiscountPercent || 0;
@@ -559,7 +643,7 @@
       items,
       ``,
       `*Subtotal:* ${inr(t.subtotal)}`,
-      ...(t.discount ? [`*Offer Discount:* -${inr(t.discount)}`] : []),
+      ...(t.discount ? [`*Discount${t.codeUsed ? " (code " + t.codeUsed + ")" : ""}:* -${inr(t.discount)}`] : []),
       ...(pi.upiDiscount ? [`*UPI Discount (${pct}%):* -${inr(pi.upiDiscount)}`] : []),
       `*Delivery:* ${t.freeShip ? "FREE" : STORE_CONFIG.shippingText}`,
       ...(gifts.length ? [`*Free Gifts:* ${gifts.join(" + ")}`] : []),
@@ -622,7 +706,7 @@
       landmark: (data.landmark || "").trim(), city: (data.city || "").trim(), state: (data.state || "").trim(),
       pincode: (data.pincode || "").trim(), note: (data.note || "").trim(),
       items: cartLines().map((l) => l.name + " x" + l.qty + " (" + inr(l.price * l.qty) + ")").join("; "),
-      itemCount: cartCountTotal(), subtotal: t.subtotal, discount: t.discount, upiDiscount: pi.upiDiscount,
+      itemCount: cartCountTotal(), subtotal: t.subtotal, discount: t.discount, discountCode: t.codeUsed, upiDiscount: pi.upiDiscount,
       delivery: t.freeShip ? "FREE" : "Confirmed at verification", gifts: gifts.join(" + "), total: pi.payable,
       paymentMethod: method === "COD" ? "COD" : "UPI", utr: (extra.utr || "").trim(),
       page: location.origin + location.pathname
@@ -681,7 +765,7 @@
         <a class="btn btn-ghost block" href="${esc(wa)}" target="_blank" rel="noopener">Message us on WhatsApp</a>
         <button type="button" class="btn btn-primary block" id="payClose">Continue shopping</button>
       </div>`;
-    state.pendingOrderId = null; state.pay = null;
+    state.pendingOrderId = null; state.pay = null; state.voucher = null; saveVoucher();
     state.cart = []; state.giftPick = null; saveCart(); renderCart();
     $("#checkoutForm").reset(); syncPayUI();
     closeModal($("#checkoutModal"));
@@ -935,9 +1019,11 @@
   injectProductSchema();
   initOffers();
   bindEvents();
+  bindCode();
   renderProducts();
   renderCart();
   observeReveals();
   initNudge();
   loadRemoteProducts();
+  loadDiscounts();
 })();
