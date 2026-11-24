@@ -1,40 +1,5 @@
-/**
- * OtakuOriginals — Google Sheet backend  (v3)
- * Orders log + abandoned checkouts + customer reviews + products + admin login
- *
- * ONE-TIME SETUP (about 10 minutes)
- * 1. Go to sheets.new and name the sheet "OtakuOriginals Orders".
- * 2. Menu: Extensions > Apps Script. Delete everything there, paste this whole file, click Save.
- * 3. ADMIN LOGIN: left side, click the gear icon "Project Settings", scroll to "Script properties",
- *    click "Add script property" twice:
- *        ADMIN_USER   =  the username you want
- *        ADMIN_PASS   =  a long password (12+ characters, mix of letters/numbers)
- *    Click "Save script properties". The password is stored only here, never on GitHub.
- * 4. Click Deploy > New deployment > gear icon > "Web app".
- *      Execute as:      Me
- *      Who has access:  Anyone
- *    Click Deploy and allow the permissions Google asks for
- *    (Advanced > Go to project (unsafe) is normal for your own script).
- * 5. Copy the "Web app URL" (ends with /exec) into settings.js:   sheetWebhookUrl: "PASTE_HERE",
- *
- * AFTER YOU CHANGE THIS CODE OR THE SCRIPT PROPERTIES:
- *    Deploy > Manage deployments > pencil icon > Version: "New version" > Deploy. (The URL stays the same.)
- *
- * WHAT YOU GET
- * - Sheet "Orders": one row per checkout. Status shows how far the customer got
- *     "Details entered - NOT submitted"  -> typed name + phone, never pressed the button   (follow up!)
- *     "Copied summary - not sent yet"    -> copied the text, may not have sent it
- *     "UPI payment pending - QR shown"   -> saw the QR code but did not tap "I've paid"
- *     "Submitted - opening WhatsApp"     -> pressed the final button
- *     "Redirected to WhatsApp"           -> WhatsApp opened with the order (check your WhatsApp inbox)
- *   Redirected only means WhatsApp opened. Your WhatsApp inbox and your UPI app confirm the real order/payment.
- * - Sheet "Reviews": new reviews arrive as Pending. Set Status to Approved to show them on the site.
- * - Sheet "Products": created when you add the first product in the admin panel (yoursite/admin/).
- * - Admin panel: yoursite/admin/  (log in with ADMIN_USER / ADMIN_PASS).
- *
- * If you already have an old "Orders" tab from an earlier version, it is renamed "Orders (old ...)"
- * automatically and a fresh Orders tab is created. Nothing is deleted.
- */
+// OtakuOriginals - Google Sheet backend (v3.2)
+// Setup: Script properties ADMIN_USER + ADMIN_PASS, then Deploy > Web app (Execute as Me, Access: Anyone)
 
 var ORDERS_SHEET = "Orders";
 var REVIEWS_SHEET = "Reviews";
@@ -50,9 +15,7 @@ var ORDER_HEADERS = ["Order ID", "First seen", "Last updated", "Status", "Name",
 var REVIEW_HEADERS = ["Review ID", "Date", "Status", "Name", "Product", "Rating", "Comment", "Photo 1", "Photo 2", "Likes"];
 var PRODUCT_HEADERS = ["ID", "Active", "Name", "Category", "Price", "Original price", "Badge", "In stock", "Description", "Images", "Created"];
 
-/* =====================================================================
-   ENTRY POINTS
-   ===================================================================== */
+/* ENTRY POINTS */
 function doPost(e) {
   var lock = LockService.getScriptLock();
   try {
@@ -72,6 +35,7 @@ function doPost(e) {
     if (!tokenOk_(data.token)) return json_({ ok: false, error: "unauthorized" });
     if (t === "adminOrders") return json_({ ok: true, orders: adminOrders_() });
     if (t === "adminNote") return json_(adminNote_(data));
+    if (t === "adminSetStatus") return json_(adminSetStatus_(data));
     if (t === "adminProducts") return json_({ ok: true, products: readProducts_(true) });
     if (t === "adminSaveProduct") return json_(adminSaveProduct_(data.product || {}));
     if (t === "adminDeleteProduct") return json_(adminDeleteProduct_(data.id));
@@ -92,12 +56,11 @@ function doGet(e) {
     if (!sh) return json_({ ok: true, managed: false, products: [] });
     return json_({ ok: true, managed: true, products: readProducts_(false) });
   }
-  return json_({ ok: true, service: "OtakuOriginals backend" });
+  var pr = PropertiesService.getScriptProperties();
+  return json_({ ok: true, service: "OtakuOriginals backend", version: "3.2", adminReady: !!(pr.getProperty("ADMIN_USER") && pr.getProperty("ADMIN_PASS")) });
 }
 
-/* =====================================================================
-   HELPERS
-   ===================================================================== */
+/* HELPERS */
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -134,9 +97,7 @@ function same_(a, b) {                                   // constant-time-ish st
 }
 function iso_(v) { return v instanceof Date ? v.toISOString() : String(v || ""); }
 
-/* =====================================================================
-   ORDERS
-   ===================================================================== */
+/* ORDERS */
 function saveOrder_(d) {
   var sh = sheet_(ORDERS_SHEET, ORDER_HEADERS);
   var H = ORDER_HEADERS, n = H.length;
@@ -220,9 +181,26 @@ function adminNote_(d) {
   return { ok: true, followup: text };
 }
 
-/* =====================================================================
-   ADMIN LOGIN (checked here on the server, never in the website code)
-   ===================================================================== */
+/* ADMIN LOGIN (checked here on the server, never in the website code) */
+// Admin sets the order stage: confirmed / shipped / delivered / cancelled / reopen
+function adminSetStatus_(d) {
+  var map = {
+    reopen: [5, "Reopened - check payment"], confirmed: [6, "Confirmed - payment verified"],
+    shipped: [7, "Shipped"], delivered: [8, "Delivered"], cancelled: [9, "Cancelled"]
+  };
+  var m = map[String(d.status)];
+  if (!m) return { ok: false, error: "unknown status" };
+  var sh = sheet_(ORDERS_SHEET, ORDER_HEADERS), H = ORDER_HEADERS, last = sh.getLastRow();
+  if (last < 2) return { ok: false, error: "not found" };
+  var hit = sh.getRange(2, 1, last - 1, 1).createTextFinder(clean_(d.orderId, 20)).matchEntireCell(true).findNext();
+  if (!hit) return { ok: false, error: "not found" };
+  var r = hit.getRow();
+  sh.getRange(r, idx_(H, "Status") + 1).setValue(m[1]);
+  sh.getRange(r, idx_(H, "Rank") + 1).setValue(m[0]);
+  sh.getRange(r, idx_(H, "Last updated") + 1).setValue(new Date());
+  return { ok: true, status: m[1], rank: m[0] };
+}
+
 function adminLogin_(d) {
   var props = PropertiesService.getScriptProperties();
   var u = props.getProperty("ADMIN_USER"), p = props.getProperty("ADMIN_PASS");
@@ -230,7 +208,8 @@ function adminLogin_(d) {
   var cache = CacheService.getScriptCache();
   var fails = Number(cache.get("adm_fails") || 0);
   if (fails >= 5) return { ok: false, error: "Too many wrong attempts. Try again in 15 minutes." };
-  var okU = same_(d.user || "", u), okP = same_(d.pass || "", p);
+  u = String(u).trim(); p = String(p).trim();
+  var okU = same_(String(d.user || "").trim(), u), okP = same_(String(d.pass || "").trim(), p);
   if (!(okU && okP)) {
     cache.put("adm_fails", String(fails + 1), 900);
     Utilities.sleep(700);
@@ -247,9 +226,7 @@ function tokenOk_(token) {
   return CacheService.getScriptCache().get("adm_tok_" + token) === "1";
 }
 
-/* =====================================================================
-   PRODUCTS
-   ===================================================================== */
+/* PRODUCTS */
 function readProducts_(includeHidden) {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PRODUCTS_SHEET);
   if (!sh || sh.getLastRow() < 2) return [];
@@ -339,9 +316,7 @@ function adminDeleteProduct_(id) {
   return { ok: false, error: "not found" };
 }
 
-/* =====================================================================
-   REVIEWS
-   ===================================================================== */
+/* REVIEWS */
 function saveReview_(d) {
   var sh = sheet_(REVIEWS_SHEET, REVIEW_HEADERS);
   var name = clean_(d.name, 40), comment = clean_(d.comment, 400);
