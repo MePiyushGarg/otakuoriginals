@@ -3,170 +3,476 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
-  <meta name="robots" content="noindex, nofollow, noarchive">
-  <title>OtakuOriginals Admin</title>
-  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <title>OtakuOriginals | Buy Anime Merchandise Online in India</title>
+  <meta name="description" content="Buy anime merchandise in India: figures, posters, stickers and tees. Free delivery on every order and extra 5% off on UPI. Order online now!">
+  <meta name="keywords" content="anime merchandise India, buy anime action figures online India, anime posters online India, anime stickers India, OtakuOriginals">
+  <link rel="canonical" href="https://otakuoriginals.shop/">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="theme-color" content="#fafafa">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/og-image.png">
+
+  <!-- Open Graph / Twitter -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="OtakuOriginals">
+  <meta property="og:locale" content="en_IN">
+  <meta property="og:title" content="OtakuOriginals | Buy Anime Merchandise Online in India">
+  <meta property="og:description" content="Anime figures, posters, stickers and merch. Free delivery on every order and extra 5% off when you pay by UPI.">
+  <meta property="og:url" content="https://otakuoriginals.shop/">
+  <meta property="og:image" content="https://otakuoriginals.shop/assets/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="OtakuOriginals | Buy Anime Merchandise Online in India">
+  <meta name="twitter:description" content="Anime figures, posters, stickers and merch. Free delivery on every order and extra 5% off when you pay by UPI.">
+  <meta name="twitter:image" content="https://otakuoriginals.shop/assets/og-image.png">
+
+  <!-- Structured data: Organization + WebSite + WebPage (product list is added automatically by app.js) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      { "@type": "Organization", "@id": "https://otakuoriginals.shop/#org", "name": "OtakuOriginals",
+        "url": "https://otakuoriginals.shop/", "email": "OtakuOriginals7@gmail.com", "telephone": "+919115521711",
+        "sameAs": ["https://instagram.com/OtakuOriginals"],
+        "contactPoint": { "@type": "ContactPoint", "telephone": "+919115521711", "contactType": "customer support", "areaServed": "IN", "availableLanguage": ["English", "Hindi"] } },
+      { "@type": "WebSite", "@id": "https://otakuoriginals.shop/#website", "url": "https://otakuoriginals.shop/", "name": "OtakuOriginals", "inLanguage": "en-IN", "publisher": { "@id": "https://otakuoriginals.shop/#org" } },
+      { "@type": "WebPage", "@id": "https://otakuoriginals.shop/#webpage", "url": "https://otakuoriginals.shop/", "name": "OtakuOriginals | Buy Anime Merchandise Online in India",
+        "description": "Anime figures, posters, stickers and merch. Free delivery on every order and extra 5% off when you pay by UPI.",
+        "isPartOf": { "@id": "https://otakuoriginals.shop/#website" }, "inLanguage": "en-IN" }
+    ]
+  }
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="admin.css?v=2">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=9">
+
+  <!-- ============ ANALYTICS ============
+       Paste your analytics code (Google Analytics / Cloudflare / Meta Pixel) right below this line.
+       It will load on every visit. ============ -->
+
 </head>
 <body>
 
-  <!-- ============ LOGIN ============ -->
-  <main class="login" id="loginView">
-    <form class="login-card" id="loginForm" autocomplete="on">
-      <div class="brand"><span class="logo">OO</span><div>Otaku<b>Originals</b><small>Admin console</small></div></div>
-      <h1>Sign in</h1>
-      <p class="muted">Manage orders, abandoned checkouts and products.</p>
-      <div class="conn" id="conn" data-s="check"><i></i><span id="connText">Checking connection…</span></div>
-      <label>Username
-        <input type="text" id="user" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
-      </label>
-      <label>Password
-        <span class="pw"><input type="password" id="pass" name="password" autocomplete="current-password" required>
-          <button type="button" id="pwToggle" aria-label="Show password">Show</button></span>
-      </label>
-      <p class="err" id="loginErr" role="alert"></p>
-      <button class="btn primary block" type="submit" id="loginBtn">Sign in</button>
-    </form>
+  <!-- Infinite looping manga background (decorative) -->
+  <div class="bg-loop" aria-hidden="true">
+    <span class="dots"><i></i></span>
+    <span class="rays"></span>
+    <span class="float f1"></span><span class="float f2"></span><span class="float f3"></span><span class="float f4"></span>
+    <span class="bubble b1"></span><span class="bubble b2"></span>
+    <span class="sfx s1">POW!</span><span class="sfx s2">BAM!</span><span class="sfx s3">ZAP!</span>
+  </div>
+
+  <!-- Offers ticker (filled from OFFERS in products.js) -->
+  <div class="ticker" aria-label="Current offers"><div class="ticker-track" id="tickerTrack"></div></div>
+
+  <!-- ================= NAVBAR ================= -->
+  <header class="navbar" id="navbar">
+    <div class="container nav-inner">
+      <a href="#top" class="brand">Otaku<span>Originals</span></a>
+
+      <nav class="nav-links" aria-label="Categories">
+        <a href="#shop" data-cat="Action Figures">Figures</a>
+        <a href="#shop" data-cat="Posters">Posters</a>
+        <a href="#shop" data-cat="Stickers">Stickers</a>
+        <a href="#shop" data-cat="Anime Merch">Merch</a>
+      </nav>
+
+      <div class="nav-actions">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" class="icon"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input type="search" id="searchInput" placeholder="Search products…" aria-label="Search products">
+        </div>
+        <button class="cart-btn" id="cartBtn" aria-label="Open cart">
+          <svg viewBox="0 0 24 24" class="icon"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6L5 3H2"/><circle cx="9" cy="20" r="1.3"/><circle cx="18" cy="20" r="1.3"/></svg>
+          <span class="cart-count" id="cartCount">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- ================= HERO ================= -->
+    <section class="hero">
+      <div class="hero-lines" aria-hidden="true">
+        <span class="line l1"></span><span class="line l2"></span><span class="line l3"></span>
+        <span class="panel p1"></span><span class="panel p2"></span>
+        <span class="sfx-hero">POW!</span>
+      </div>
+      <div class="container hero-inner">
+        <p class="eyebrow reveal-text"><span>India's Anime Merchandise Store</span></p>
+        <h1 class="hero-title">
+          <span class="reveal-text"><span>Anime merch</span></span>
+          <span class="reveal-text"><span>you'll <em>love.</em></span></span>
+        </h1>
+        <p class="hero-sub fade-in">Figures, posters, stickers &amp; merch — delivered across India. Free delivery on every order. Pay by UPI for an extra 5% off, or choose Cash on Delivery.</p>
+        <a href="#shop" class="btn btn-primary fade-in delay">Explore Collection →</a>
+      </div>
+    </section>
+
+    <!-- Scrolling manga SFX band -->
+    <div class="band" aria-hidden="true"><div class="band-track" id="bandTrack"></div></div>
+
+    <!-- ================= TRUST STRIP ================= -->
+    <section class="trust">
+      <div class="container trust-grid">
+        <div class="trust-item reveal">
+          <svg viewBox="0 0 24 24" class="icon lg"><path d="M3 7l9-4 9 4-9 4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>
+          <div><strong>Pan-India Delivery</strong><span>Every pincode, safely</span></div>
+        </div>
+        <div class="trust-item reveal">
+          <svg viewBox="0 0 24 24" class="icon lg"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></svg>
+          <div><strong>Stock-Verified Orders</strong><span>Refund if unavailable</span></div>
+        </div>
+        <div class="trust-item reveal">
+          <svg viewBox="0 0 24 24" class="icon lg"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z"/></svg>
+          <div><strong>Protective Packaging</strong><span>Collectibles arrive intact</span></div>
+        </div>
+        <div class="trust-item reveal">
+          <svg viewBox="0 0 24 24" class="icon lg"><path d="M4 20l1.3-4A8 8 0 1 1 8 18.7z"/><path d="M9 9.5c.5 2 2.500 4 5 5"/></svg>
+          <div><strong>WhatsApp Support</strong><span>Talk to a real person</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= AUTO OFFERS ================= -->
+    <section class="offers container">
+      <div class="section-head reveal">
+        <h2>Our Offers: Free Delivery &amp; Extra UPI Discount</h2>
+        <p class="muted">Applied automatically in your cart</p>
+      </div>
+      <div class="offer-grid" id="offerGrid"></div>
+    </section>
+
+    <!-- ================= SHOP ================= -->
+    <section class="shop container" id="shop">
+      <div class="section-head reveal">
+        <h2>Shop Anime Figures, Posters, Stickers &amp; Merch</h2>
+        <p id="resultCount" class="muted"></p>
+      </div>
+
+      <div class="toolbar reveal">
+        <div class="pills" id="pills" role="tablist" aria-label="Filter by category">
+          <button class="pill active" data-cat="All">All</button>
+          <button class="pill" data-cat="Action Figures">Action Figures</button>
+          <button class="pill" data-cat="Posters">Posters</button>
+          <button class="pill" data-cat="Stickers">Stickers</button>
+          <button class="pill" data-cat="Anime Merch">Anime Merch</button>
+        </div>
+        <select id="sortSelect" aria-label="Sort products">
+          <option value="featured">Sort: Featured</option>
+          <option value="low">Price: Low to High</option>
+          <option value="high">Price: High to Low</option>
+        </select>
+      </div>
+
+      <div class="grid" id="productGrid"></div>
+      <p class="empty" id="emptyState" hidden>No products found. Try a different search or category.</p>
+    </section>
   </main>
 
-  <!-- ============ APP ============ -->
-  <div class="shell" id="appView" hidden>
-
-    <aside class="side">
-      <div class="brand"><span class="logo">OO</span><div>Otaku<b>Originals</b><small>Admin console</small></div></div>
-      <nav class="nav" id="nav">
-        <button data-view="overview" class="on"><svg viewBox="0 0 24 24"><path d="M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg><span>Overview</span></button>
-        <button data-view="orders"><svg viewBox="0 0 24 24"><path d="M6 2h12l2 5v13H4V7zM4 7h16M9 11h6"/></svg><span>Orders</span><em id="nOrders">0</em></button>
-        <button data-view="abandoned"><svg viewBox="0 0 24 24"><path d="M3 4h2l2.5 11h10L20 7H6.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/></svg><span>Abandoned</span><em id="nAband">0</em></button>
-        <button data-view="products"><svg viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/></svg><span>Products</span><em id="nProducts">0</em></button>
-      </nav>
-      <a class="store-link" href="../" target="_blank" rel="noopener">View store ↗</a>
-    </aside>
-
-    <div class="main">
-      <header class="top">
-        <div>
-          <h1 id="viewTitle">Overview</h1>
-          <p class="muted" id="viewSub"></p>
-        </div>
-        <div class="top-actions">
-          <span class="updated" id="updated"></span>
-          <button class="btn ghost sm" id="refreshBtn">↻ Refresh</button>
-          <button class="btn ghost sm" id="logoutBtn">Log out</button>
-        </div>
-      </header>
-
-      <div class="content">
-        <!-- Overview -->
-        <section id="vOverview">
-          <div class="kpis" id="kpis"></div>
-          <div class="grid2">
-            <div class="card"><div class="card-h"><h2>Needs your attention</h2><button class="link" data-go="orders">View all</button></div><div id="ovNew" class="rows"></div></div>
-            <div class="card"><div class="card-h"><h2>Recent abandoned checkouts</h2><button class="link" data-go="abandoned">View all</button></div><div id="ovAband" class="rows"></div></div>
-          </div>
-        </section>
-
-        <!-- Orders / Abandoned -->
-        <section id="vOrders" hidden>
-          <div class="toolbar">
-            <input type="search" id="orderSearch" placeholder="Search name, phone or order ID">
-            <div class="chips" id="chips"></div>
-          </div>
-          <div id="orderList" class="rows card"></div>
-        </section>
-
-        <!-- Products -->
-        <section id="vProducts" hidden>
-          <div class="toolbar">
-            <p class="muted">Products shown on your store. Adding your first product here replaces the sample product.</p>
-            <button class="btn primary" id="addProductBtn">＋ Add product</button>
-          </div>
-          <div id="productList" class="rows card"></div>
-        </section>
+  <!-- ================= JOURNEY (INSTAGRAM REELS) ================= -->
+  <section class="journey" id="journey">
+    <div class="container">
+      <div class="section-head reveal">
+        <h2>Our Journey</h2>
+        <p class="muted">Behind the scenes, unboxings &amp; new drops</p>
       </div>
+    </div>
+    <div class="slider" id="journeySlider" role="region" aria-roledescription="carousel" aria-label="Instagram reels">
+      <div class="slider-track" id="journeyTrack"></div>
+    </div>
+    <div class="container slider-ctrl">
+      <button type="button" class="sl-btn" id="jPrev" aria-label="Previous reel">←</button>
+      <div class="sl-dots" id="jDots" aria-hidden="true"></div>
+      <button type="button" class="sl-btn" id="jNext" aria-label="Next reel">→</button>
+      <a id="jFollow" class="btn btn-ghost" target="_blank" rel="noopener">Follow on Instagram</a>
+    </div>
+  </section>
+
+  <!-- ================= CUSTOMER REVIEWS ================= -->
+  <section class="reviews container" id="reviews">
+    <div class="section-head reveal">
+      <h2>Customer Love</h2>
+      <button type="button" class="btn btn-primary" id="openReview">Share your review</button>
+    </div>
+    <p class="muted rv-note">Photos and comments from real OtakuOriginals customers. Tap ♥ to like a review.</p>
+    <div class="rv-grid" id="reviewGrid"></div>
+  </section>
+
+  <!-- ================= OUR STORY ================= -->
+  <section class="story container" id="story">
+    <div class="story-grid reveal">
+      <div class="story-img">
+        <!-- Replace by uploading your own photo as assets/founder.jpg -->
+        <img src="assets/founder.jpg" alt="Piyush, founder of OtakuOriginals from Patiala" width="600" height="750" loading="lazy" onerror="this.onerror=null;this.src='assets/placeholder.svg'">
+      </div>
+      <div class="story-text">
+        <p class="eyebrow">Our Story</p>
+        <h2>Hi, I'm Piyush from Patiala.</h2>
+        <p>I started OtakuOriginals because anime merch in India is often overpriced and hard to find. My goal is simple: help you get your favourite figures, posters, stickers and merch at better prices than most retail stores, with honest stock checks and free delivery on every order.</p>
+        <p>We are a young brand. Right now we sell general anime-inspired merchandise, and as we grow, we plan to launch our own OtakuOriginals label.</p>
+        <a href="#shop" class="btn btn-primary">Start Shopping →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FAQ ================= -->
+  <section class="faq container" id="faq">
+    <div class="section-head reveal"><h2>Frequently Asked Questions</h2></div>
+    <div class="faq-list" id="faqList"></div>
+  </section>
+
+  <!-- ================= SEO CONTENT ================= -->
+  <section class="about container">
+    <h2>How Ordering Works</h2>
+    <p>Welcome to OtakuOriginals, an Indian anime merchandise store made for fans who want to collect, decorate and gift what they love. From pocket-friendly stickers at ₹129 to collector-grade action figures, everything ships across India with careful packing.</p>
+    <div class="about-grid">
+      <div>
+        <h3>Why fans shop with us</h3>
+        <ul>
+          <li><strong>Wide range:</strong> action figures, posters, stickers, tees, mugs and keychains in one place</li>
+          <li><strong>Easy payment:</strong> pay by UPI for an extra 5% off, or choose Cash on Delivery. If an item is unavailable, your UPI payment for it is refunded</li>
+          <li><strong>Protective packaging:</strong> figures and rolled posters reach you in good condition</li>
+          <li><strong>Pan-India delivery:</strong> we deliver to every serviceable pincode</li>
+          <li><strong>Real human support:</strong> chat directly on WhatsApp for sizes, availability and tracking</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Offers</h3>
+        <ul>
+          <li>Free delivery on every order, and an extra 5% off when you pay by UPI (not on Cash on Delivery)</li>
+        </ul>
+      </div>
+    </div>
+    <p>Browse the collection, fill your cart, and pay by UPI or choose Cash on Delivery in under two minutes.</p>
+  </section>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="footer">
+    <div class="container footer-grid">
+      <div>
+        <a href="#top" class="brand">Otaku<span>Originals</span></a>
+        <p class="muted">Made by fans, for fans. Authentic-feeling anime merch, carefully packed and shipped across India.</p>
+        <div class="socials">
+          <a id="igLink" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24" class="icon"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r=".8"/></svg></a>
+          <a id="ytLink" target="_blank" rel="noopener" aria-label="YouTube"><svg viewBox="0 0 24 24" class="icon"><rect x="2.5" y="5.5" width="19" height="13" rx="4"/><path d="M10 9.5l5 2.500-5 2.500z"/></svg></a>
+          <a id="waLink" target="_blank" rel="noopener" aria-label="WhatsApp"><svg viewBox="0 0 24 24" class="icon"><path d="M4 20l1.300-4A8 8 0 1 1 8 18.700z"/><path d="M9 9.500c.5 2 2.500 4 5 5"/></svg></a>
+        </div>
+      </div>
+      <div>
+        <h4>Shop</h4>
+        <ul>
+          <li><a href="#shop" data-cat="Action Figures">Action Figures</a></li>
+          <li><a href="#shop" data-cat="Posters">Posters</a></li>
+          <li><a href="#shop" data-cat="Stickers">Stickers</a></li>
+          <li><a href="#shop" data-cat="Anime Merch">Anime Merch</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Help</h4>
+        <ul>
+          <li><a href="#" data-policy="shipping">Shipping Policy</a></li>
+          <li><a href="#" data-policy="returns">Return Policy</a></li>
+          <li><a href="#" data-policy="privacy">Privacy Policy</a></li>
+          <li><a href="#" data-policy="terms">Terms &amp; Conditions</a></li>
+          <li><a href="#faq">FAQ</a></li>
+          <li><a href="#reviews">Customer Reviews</a></li>
+          <li><a href="#journey">Our Journey</a></li>
+          <li><a id="mailLink" href="#"></a></li>
+          <li><a id="waText" target="_blank" rel="noopener" href="#"></a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="container footer-bottom">
+      <span>© <span id="year"></span> OtakuOriginals · otakuoriginals.shop</span>
+      <span>Not affiliated with any anime studio or publisher.</span>
+    </div>
+  </footer>
+
+  <!-- ================= OVERLAY ================= -->
+  <div class="overlay" id="overlay"></div>
+
+  <!-- ================= CART DRAWER ================= -->
+  <aside class="drawer" id="drawer" aria-label="Shopping cart" aria-hidden="true">
+    <div class="drawer-head">
+      <h3>Your Cart</h3>
+      <button class="close-btn" data-close aria-label="Close cart">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="progress" id="offerProgress" hidden></div>
+      <div id="cartItems"></div>
+      <div class="recs" id="cartRecs"></div>
+    </div>
+    <div class="drawer-foot" id="cartFoot">
+      <div class="row"><span>Subtotal</span><strong id="cartSubtotal">₹0</strong></div>
+      <div class="row disc" id="discRow" hidden><span>Offer discount</span><strong id="cartDiscount"></strong></div>
+      <div class="row"><span>Delivery</span><strong id="shipVal">—</strong></div>
+      <div class="gift-line" id="giftRow" hidden></div>
+      <div class="row total"><span>Total</span><strong id="cartTotal">₹0</strong></div>
+      <div class="upi-hint" id="upiHint" hidden></div>
+      <p class="muted small" id="shippingNote"></p>
+      <p class="muted small">📦 <span data-cfg="trackingText"></span></p>
+      <button class="btn btn-primary block" id="checkoutBtn">Proceed to Order</button>
+    </div>
+  </aside>
+
+  <!-- ================= QUICK VIEW MODAL ================= -->
+  <div class="modal" id="quickModal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-card wide">
+      <button class="close-btn" data-close aria-label="Close">✕</button>
+      <div class="qv" id="quickContent"></div>
     </div>
   </div>
 
-  <!-- ============ ORDER DETAIL ============ -->
-  <div class="drawer-wrap" id="drawerWrap" hidden>
-    <div class="scrim" id="drawerScrim"></div>
-    <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Order details"></aside>
-  </div>
+  <!-- ================= CHECKOUT MODAL ================= -->
+  <div class="modal" id="checkoutModal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-card">
+      <button class="close-btn" data-close aria-label="Close">✕</button>
+      <h3>Confirm Your Order</h3>
 
-  <!-- ============ PRODUCT FORM ============ -->
-  <div class="modal" id="productModal" hidden>
-    <form class="modal-card" id="productForm" novalidate>
-      <div class="modal-head">
-        <h2 id="productFormTitle">Add product</h2>
-        <button type="button" class="x" id="productClose" aria-label="Close">✕</button>
+      <div class="notice" role="note">
+        <strong>Important Note:</strong> Choose UPI or Cash on Delivery below. After you order, our team checks your payment and stock, then contacts you with delivery information. If any item is unavailable, we refund any UPI payment for it in full.
       </div>
 
-      <label>Product name *
-        <input type="text" name="name" maxlength="120" required>
-      </label>
-      <div class="two">
-        <label>Category *
-          <select name="category">
-            <option>Action Figures</option>
-            <option>Posters</option>
-            <option>Stickers</option>
-            <option>Anime Merch</option>
-          </select>
-        </label>
-        <label>Badge
-          <select name="badge">
-            <option value="">None</option>
-            <option>Bestseller</option>
-            <option>New</option>
-            <option>Limited</option>
-          </select>
-        </label>
-      </div>
-      <div class="two">
-        <label>Selling price (₹) *
-          <input type="number" name="price" min="1" step="1" inputmode="numeric" required>
-        </label>
-        <label>Original price (₹)
-          <input type="number" name="originalPrice" min="0" step="1" inputmode="numeric" placeholder="for the discount tag">
-        </label>
-      </div>
-      <label>Description
-        <textarea name="description" rows="3" maxlength="600" placeholder="What makes it special? Size, material, etc."></textarea>
-      </label>
+      <p class="co-meta"><strong>Payment:</strong> <span data-cfg="paymentText"></span></p>
+      <p class="co-meta"><strong>Order tracking:</strong> <span data-cfg="trackingText"></span></p>
 
-      <div class="photos">
-        <span class="lbl">Photos (up to 5, the first is the main photo)</span>
-        <div class="thumbs" id="thumbs"></div>
-        <div class="photo-actions">
-          <label class="btn ghost sm" for="photoFile">📷 Add photos</label>
-          <input type="file" id="photoFile" accept="image/*" multiple hidden>
-          <div class="url-add">
-            <input type="url" id="photoUrl" placeholder="…or paste an image link (https://…)">
-            <button type="button" class="btn ghost sm" id="photoUrlBtn">Add</button>
-          </div>
+      <div class="co-summary" id="coSummary"></div>
+
+      <form id="checkoutForm" novalidate>
+        <label>Full Name *
+          <input type="text" name="name" autocomplete="name" required>
+          <small class="err"></small>
+        </label>
+        <label>Phone / WhatsApp Number (10 digits) *
+          <input type="tel" name="phone" inputmode="numeric" maxlength="10" autocomplete="tel-national" required>
+          <small class="err"></small>
+        </label>
+        <label>House / Street *
+          <input type="text" name="street" autocomplete="street-address" required>
+          <small class="err"></small>
+        </label>
+        <label>Landmark *
+          <input type="text" name="landmark" required>
+          <small class="err"></small>
+        </label>
+        <div class="two">
+          <label>City *
+            <input type="text" name="city" autocomplete="address-level2" required>
+            <small class="err"></small>
+          </label>
+          <label>State *
+            <input type="text" name="state" autocomplete="address-level1" required>
+            <small class="err"></small>
+          </label>
         </div>
-      </div>
+        <label>Pincode (6 digits) *
+          <input type="text" name="pincode" inputmode="numeric" maxlength="6" autocomplete="postal-code" required>
+          <small class="err"></small>
+        </label>
+        <label>Customer Note (optional)
+          <textarea name="note" rows="2" placeholder="Delivery instructions, size, special requests…"></textarea>
+        </label>
 
-      <div class="checks">
-        <label class="check"><input type="checkbox" name="inStock" checked> In stock</label>
-        <label class="check"><input type="checkbox" name="active" checked> Show on website</label>
-      </div>
+        <fieldset class="pay-methods">
+          <legend>Payment method *</legend>
+          <label class="pay-opt" id="optUpi"><input type="radio" name="payMethod" value="UPI" checked><span class="po-body"><strong>Pay by UPI</strong><small>Scan a QR code or open your UPI app <b class="save-tag" id="upiTag">Extra 5% OFF</b></small></span></label>
+          <label class="pay-opt" id="optCod"><input type="radio" name="payMethod" value="COD"><span class="po-body"><strong>Cash on Delivery</strong><small>Pay when your order arrives · no UPI discount</small></span></label>
+        </fieldset>
 
-      <p class="err" id="productErr" role="alert"></p>
-      <div class="modal-foot">
-        <button type="button" class="btn ghost" id="productCancel">Cancel</button>
-        <button type="submit" class="btn primary" id="productSave">Save product</button>
-      </div>
-    </form>
+        <p class="consent">We save these details to process your order and may message you on WhatsApp if you need help completing it. See our <a href="#" data-policy="privacy">Privacy Policy</a>.</p>
+        <button type="submit" class="btn btn-primary block" id="placeBtn">Continue to UPI Payment</button>
+        <button type="button" class="btn btn-ghost block" id="copyBtn">Copy Order Summary</button>
+      </form>
+    </div>
   </div>
+
+  <!-- ================= UPI PAYMENT MODAL ================= -->
+  <div class="modal" id="payModal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-card">
+      <button class="close-btn" data-close aria-label="Close">✕</button>
+      <div id="payContent"></div>
+    </div>
+  </div>
+
+  <!-- ================= POLICY MODAL ================= -->
+  <div class="modal" id="policyModal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-card">
+      <button class="close-btn" data-close aria-label="Close">✕</button>
+      <div id="policyContent"></div>
+    </div>
+  </div>
+
+  <!-- ================= REVIEW MODAL ================= -->
+  <div class="modal" id="reviewModal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-card">
+      <button class="close-btn" data-close aria-label="Close">✕</button>
+      <h3>Share your review</h3>
+      <form id="reviewForm" novalidate>
+        <label>Your name *
+          <input type="text" name="name" maxlength="40" autocomplete="name" required>
+        </label>
+        <label>Product (optional)
+          <select name="product" id="reviewProduct"><option value="">Select a product</option></select>
+        </label>
+        <fieldset class="stars-input">
+          <legend>Rating *</legend>
+          <div class="star-row">
+            <input type="radio" name="rating" value="5" id="st5" checked><label for="st5" title="5 stars">★</label>
+            <input type="radio" name="rating" value="4" id="st4"><label for="st4" title="4 stars">★</label>
+            <input type="radio" name="rating" value="3" id="st3"><label for="st3" title="3 stars">★</label>
+            <input type="radio" name="rating" value="2" id="st2"><label for="st2" title="2 stars">★</label>
+            <input type="radio" name="rating" value="1" id="st1"><label for="st1" title="1 star">★</label>
+          </div>
+        </fieldset>
+        <label>Your comment *
+          <textarea name="comment" rows="3" maxlength="400" placeholder="How was your order?" required></textarea>
+        </label>
+        <div class="photo-pick">
+          <label class="btn btn-ghost block" for="reviewPhotos">📷 Add up to 2 photos</label>
+          <input type="file" id="reviewPhotos" accept="image/*" multiple hidden>
+          <div class="photo-previews" id="photoPreviews"></div>
+        </div>
+        <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <small class="err" id="reviewErr"></small>
+        <p class="consent">Your review appears after a quick check by our team. Your name, comment and photos will be shown publicly.</p>
+        <button type="submit" class="btn btn-primary block" id="reviewSubmit">Submit review</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= ABANDONED-CART NUDGE ================= -->
+  <div class="nudge" id="nudge" role="status" hidden>
+    <div class="nudge-text" id="nudgeText"></div>
+    <div class="nudge-actions">
+      <button type="button" class="btn btn-primary" id="nudgeGo">View cart</button>
+      <button type="button" class="close-btn" id="nudgeClose" aria-label="Dismiss">✕</button>
+    </div>
+  </div>
+
+  <!-- ================= HELP ASSISTANT ================= -->
+  <button type="button" class="chat-fab" id="chatFab" aria-label="Open help chat" aria-expanded="false">
+    <svg viewBox="0 0 24 24" class="icon"><path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.6A8 8 0 1 1 21 12z"/><circle cx="9" cy="12" r=".6"/><circle cx="12.5" cy="12" r=".6"/><circle cx="16" cy="12" r=".6"/></svg>
+    <span>Help</span>
+  </button>
+  <section class="chat" id="chatPanel" aria-label="Help assistant" hidden>
+    <div class="chat-head"><strong>Otaku Assistant</strong><button type="button" class="close-btn" id="chatClose" aria-label="Close chat">✕</button></div>
+    <div class="chat-log" id="chatLog" aria-live="polite"></div>
+    <div class="chat-chips" id="chatChips"></div>
+    <form class="chat-form" id="chatForm">
+      <input type="text" id="chatInput" placeholder="Type your question…" maxlength="200" autocomplete="off" aria-label="Your question">
+      <button type="submit" class="btn btn-primary">Send</button>
+    </form>
+    <a class="chat-human" id="chatHuman" target="_blank" rel="noopener">Talk to a person on WhatsApp →</a>
+  </section>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="../products.js"></script>
-  <script src="../settings.js"></script>
-  <script src="admin.js?v=2"></script>
+  <script src="products.js?v=9"></script>
+  <script src="settings.js?v=9"></script>
+  <script src="qr.js?v=9"></script>
+  <script src="app.js?v=9"></script>
+  <script src="extras.js?v=9"></script>
 </body>
 </html>
