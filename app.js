@@ -692,6 +692,7 @@
   function postToSheet(payload, keepalive = true) {
     const url = STORE_CONFIG.sheetWebhookUrl;
     if (!url) return Promise.resolve(false);
+    if (payload && payload.type === "order" && window.OOAuth) payload.session = OOAuth.session();
     return fetch(url, { method: "POST", mode: "no-cors", keepalive, headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload) })
       .then(() => true).catch(() => false);
   }
@@ -716,6 +717,7 @@
   function leadReady(d) { return !VALIDATORS.name(d.name || "") && !VALIDATORS.phone(d.phone || ""); }
   function scheduleLead() {
     if (!STORE_CONFIG.sheetWebhookUrl) return;
+    if (window.OOAuth && OOAuth.gated() && !OOAuth.session()) return;
     clearTimeout(leadTimer);
     leadTimer = setTimeout(flushLead, 1500);
   }
@@ -732,6 +734,20 @@
     if (cartLines().length === 0) { toast("Your cart is empty"); return; }
     const form = e.currentTarget;
     if (!validateForm(form)) return;
+    if (window.OOAuth && OOAuth.gated()) {
+      if (!OOAuth.ready()) { OOAuth.require("checkout", () => { OOAuth.prefill(form); toast("Signed in. Tap Place order to continue."); }); return; }
+      const btn = form.querySelector("[type=submit]"); if (btn) btn.disabled = true;
+      OOAuth.verify().then((ok) => {
+        if (btn) btn.disabled = false;
+        if (ok === false) { OOAuth.require("checkout", () => toast("Signed in. Tap Place order to continue.")); return; }
+        if (ok === null) { toast("Could not check your sign-in. Please check your internet and try again."); return; }
+        proceedOrder(form);
+      });
+      return;
+    }
+    proceedOrder(form);
+  }
+  function proceedOrder(form) {
     const orderId = ensureOrderId(), data = getFormData(form), method = data.payMethod === "COD" ? "COD" : "UPI";
     if (method === "UPI") {
       if (!STORE_CONFIG.upiId) { toast("UPI is not available right now. Please choose Cash on Delivery."); return; }
@@ -763,6 +779,7 @@
         <p>${paid ? "We will check that your payment has arrived in our account. " : ""}<b>Our admin will reach out to you on ${phone} shortly and share the delivery information.</b></p>
         <p class="muted small">Please keep your phone handy. If you need anything, message us on WhatsApp with your order ID.</p>
         <a class="btn btn-ghost block" href="${esc(wa)}" target="_blank" rel="noopener">Message us on WhatsApp</a>
+        ${window.OOAuth && OOAuth.session() ? `<button type="button" class="btn btn-ghost block" id="trackOrder">Track my order</button>` : ""}
         <button type="button" class="btn btn-primary block" id="payClose">Continue shopping</button>
       </div>`;
     state.pendingOrderId = null; state.pay = null; state.voucher = null; saveVoucher();
@@ -814,6 +831,7 @@
     $("#payContent").addEventListener("click", async (e) => {
       if (e.target.closest("#payBack")) { closeModal($("#payModal")); renderCheckoutSummary(); openModal("checkoutModal"); return; }
       if (e.target.closest("#payClose")) { closeModal($("#payModal")); return; }
+      if (e.target.closest("#trackOrder")) { closeModal($("#payModal")); OOAuth.refreshOrders(); OOAuth.open("orders"); return; }
       if (e.target.closest("#payCopy")) {
         try { await navigator.clipboard.writeText(STORE_CONFIG.upiId); toast("UPI ID copied"); } catch (err) { toast("Long-press the UPI ID to copy"); }
         return;
@@ -903,9 +921,14 @@
     $("#checkoutBtn").addEventListener("click", () => {
       pruneCart();
       if (cartLines().length === 0) return;
-      renderCheckoutSummary();
-      ensureOrderId();
-      closeDrawer(); openModal("checkoutModal");
+      const go = () => {
+        renderCheckoutSummary();
+        ensureOrderId();
+        closeDrawer(); openModal("checkoutModal");
+        if (window.OOAuth) OOAuth.prefill($("#checkoutForm"));
+      };
+      if (window.OOAuth && OOAuth.gated() && !OOAuth.ready()) { closeDrawer(); OOAuth.require("checkout", go); return; }
+      go();
     });
     // Recommended products inside the cart
     $("#cartRecs").addEventListener("click", (e) => {

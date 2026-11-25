@@ -1,4 +1,4 @@
-// OtakuOriginals - Google Sheet backend (v3.3)
+// OtakuOriginals - Google Sheet backend (v3.4)
 // Setup: Script properties ADMIN_USER + ADMIN_PASS, then Deploy > Web app (Execute as Me, Access: Anyone)
 
 var ORDERS_SHEET = "Orders";
@@ -8,13 +8,15 @@ var REVIEW_FOLDER = "OtakuOriginals Review Photos";
 var PRODUCT_FOLDER = "OtakuOriginals Product Photos";
 var OWNER_EMAIL = "OtakuOriginals7@gmail.com";   // gets an email when a new review arrives (set "" to turn off)
 var DISCOUNTS_SHEET = "Discounts";
+var CUSTOMERS_SHEET = "Customers";
 var DEFAULT_CATEGORIES = ["Action Figures", "Posters", "Stickers", "Anime Merch"];
 var DEFAULT_BADGES = ["Bestseller", "New", "Limited"];
 
 var ORDER_HEADERS = ["Order ID", "First seen", "Last updated", "Status", "Name", "Phone", "Street", "Landmark", "City", "State",
   "Pincode", "Note", "Items", "Item count", "Subtotal", "Offer discount", "UPI discount", "Delivery", "Free gifts", "Total payable",
-  "Payment method", "UTR / ref", "Rank", "Page", "Follow-up notes", "Discount code"];
-var REVIEW_HEADERS = ["Review ID", "Date", "Status", "Name", "Product", "Rating", "Comment", "Photo 1", "Photo 2", "Likes"];
+  "Payment method", "UTR / ref", "Rank", "Page", "Follow-up notes", "Discount code", "Customer email", "Courier", "Tracking ID"];
+var REVIEW_HEADERS = ["Review ID", "Date", "Status", "Name", "Product", "Rating", "Comment", "Photo 1", "Photo 2", "Likes", "Email", "Verified buyer"];
+var CUSTOMER_HEADERS = ["Email", "Google ID", "Name", "Phone", "Street", "Landmark", "City", "State", "Pincode", "Created", "Last login"];
 var DISCOUNT_HEADERS = ["ID", "Active", "Title", "Code", "Type", "Value", "Min order", "Auto apply", "Show on site", "Start", "End", "Max uses", "Description", "Created"];
 var PRODUCT_HEADERS = ["ID", "Active", "Name", "Category", "Price", "Original price", "Badge", "In stock", "Description", "Images", "Created"];
 
@@ -27,9 +29,20 @@ function doPost(e) {
     var t = data.type;
 
     // public actions (used by the website)
-    if (t === "order") { saveOrder_(data); return json_({ ok: true }); }
-    if (t === "review") { saveReview_(data); return json_({ ok: true }); }
     if (t === "like") { saveLike_(data); return json_({ ok: true }); }
+
+    // customer actions (a customer must be signed in with Google)
+    if (t === "customerLogin") return json_(customerLogin_(data));
+    if (t === "order" || t === "review" || t === "customerMe" || t === "customerSaveProfile" || t === "customerOrders") {
+      var me = readSession_(data.session);
+      if (!me) return json_({ ok: false, error: "login" });
+      data._email = me.email;
+      if (t === "order") { saveOrder_(data); return json_({ ok: true }); }
+      if (t === "review") return json_(saveReview_(data));
+      if (t === "customerMe") return json_(customerMe_(me));
+      if (t === "customerSaveProfile") return json_(customerSaveProfile_(me, data));
+      return json_({ ok: true, orders: customerOrders_(me) });
+    }
 
     // admin login
     if (t === "adminLogin") return json_(adminLogin_(data));
@@ -39,6 +52,10 @@ function doPost(e) {
     if (t === "adminOrders") return json_({ ok: true, orders: adminOrders_() });
     if (t === "adminNote") return json_(adminNote_(data));
     if (t === "adminSetStatus") return json_(adminSetStatus_(data));
+    if (t === "adminSetTracking") return json_(adminSetTracking_(data));
+    if (t === "adminReviews") return json_({ ok: true, reviews: adminReviews_() });
+    if (t === "adminReviewStatus") return json_(adminReviewStatus_(data));
+    if (t === "adminDeleteReview") return json_(adminDeleteReview_(data.id));
     if (t === "adminProducts") return json_({ ok: true, products: readProducts_(true), options: getOptions_() });
     if (t === "adminAddOption") return json_(adminAddOption_(data));
     if (t === "adminRemoveOption") return json_(adminRemoveOption_(data));
@@ -64,10 +81,11 @@ function doGet(e) {
     if (!sh) return json_({ ok: true, managed: false, products: [] });
     return json_({ ok: true, managed: true, products: readProducts_(false) });
   }
+  if (action === "config") return json_({ ok: true, googleClientId: PropertiesService.getScriptProperties().getProperty("GOOGLE_CLIENT_ID") || "" });
   if (action === "discounts") return json_({ ok: true, discounts: publicDiscounts_() });
   if (action === "validate") return json_(validateCode_(e.parameter.code));
   var pr = PropertiesService.getScriptProperties();
-  return json_({ ok: true, service: "OtakuOriginals backend", version: "3.3", adminReady: !!(pr.getProperty("ADMIN_USER") && pr.getProperty("ADMIN_PASS")) });
+  return json_({ ok: true, service: "OtakuOriginals backend", version: "3.4", adminReady: !!(pr.getProperty("ADMIN_USER") && pr.getProperty("ADMIN_PASS")), googleReady: !!pr.getProperty("GOOGLE_CLIENT_ID") });
 }
 
 /* HELPERS */
@@ -128,7 +146,7 @@ function saveOrder_(d) {
     "Offer discount": num_(d.discount), "UPI discount": num_(d.upiDiscount), "Delivery": clean_(d.delivery, 60),
     "Free gifts": clean_(d.gifts, 200), "Total payable": num_(d.total), "Payment method": clean_(d.paymentMethod, 10),
     "UTR / ref": clean_(d.utr, 30), "Rank": rank, "Page": clean_(d.page, 200),
-    "Discount code": clean_(d.discountCode, 40)
+    "Discount code": clean_(d.discountCode, 40), "Customer email": String(d._email || "")
   };
 
   var last = sh.getLastRow();
@@ -148,8 +166,11 @@ function saveOrder_(d) {
 
   var rr = hit.getRow();
   var cur = sh.getRange(rr, 1, 1, n).getValues()[0];
+  var owner = String(cur[idx_(H, "Customer email")] || "");
+  if (owner && owner !== String(d._email || "")) return;            // someone else's order id: ignore
   var next = cur.slice();
-  var keep = { "Order ID": 1, "First seen": 1, "Follow-up notes": 1, "Status": 1, "Rank": 1 };
+  var keep = { "Order ID": 1, "First seen": 1, "Follow-up notes": 1, "Status": 1, "Rank": 1, "Courier": 1, "Tracking ID": 1 };
+  if (owner) keep["Customer email"] = 1;
   H.forEach(function (h, i) {
     if (keep[h] || !rec.hasOwnProperty(h)) return;
     if (h === "UTR / ref" && !rec[h]) return;                  // never wipe a saved UTR
@@ -179,7 +200,7 @@ function adminOrders_() {
       discount: num_(g("Offer discount")), upiDiscount: num_(g("UPI discount")), delivery: String(g("Delivery")),
       gifts: String(g("Free gifts")), total: num_(g("Total payable")), method: String(g("Payment method")),
       utr: String(g("UTR / ref")), rank: num_(g("Rank")), followup: String(g("Follow-up notes")),
-      code: String(g("Discount code"))
+      code: String(g("Discount code")), email: String(g("Customer email")), courier: String(g("Courier")), tracking: String(g("Tracking ID"))
     };
   });
   out.sort(function (a, b) { return a.updated < b.updated ? 1 : -1; });
@@ -500,27 +521,216 @@ function adminDeleteProduct_(id) {
   return { ok: false, error: "not found" };
 }
 
+/* CUSTOMER ACCOUNTS (Google sign-in) */
+function secret_() {
+  var pr = PropertiesService.getScriptProperties(), k = pr.getProperty("SESSION_SECRET");
+  if (!k) { k = Utilities.getUuid() + Utilities.getUuid(); pr.setProperty("SESSION_SECRET", k); }
+  return k;
+}
+function makeSession_(email, sub) {
+  var payload = JSON.stringify({ e: email, s: sub, x: new Date().getTime() + 30 * 864e5 });
+  var p = Utilities.base64EncodeWebSafe(Utilities.newBlob(payload).getBytes());
+  var sig = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(p, secret_()));
+  return p + "." + sig;
+}
+function readSession_(token) {
+  try {
+    token = String(token || "");
+    var parts = token.split(".");
+    if (parts.length !== 2 || token.length > 1000) return null;
+    var sig = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(parts[0], secret_()));
+    if (!same_(sig, parts[1])) return null;
+    var o = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString());
+    if (!o || !o.e || !(o.x > new Date().getTime())) return null;
+    return { email: String(o.e), sub: String(o.s) };
+  } catch (x) { return null; }
+}
+function customersSheet_() { return sheet_(CUSTOMERS_SHEET, CUSTOMER_HEADERS); }
+function findCustomer_(email) {
+  var sh = customersSheet_(), H = CUSTOMER_HEADERS, last = sh.getLastRow();
+  if (last < 2 || !email) return null;
+  var hit = sh.getRange(2, 1, last - 1, 1).createTextFinder(email).matchEntireCell(true).findNext();
+  if (!hit) return null;
+  var r = sh.getRange(hit.getRow(), 1, 1, H.length).getValues()[0], o = { row: hit.getRow() };
+  H.forEach(function (h, i) { o[h] = r[i]; });
+  return { row: o.row, email: String(o["Email"]), name: String(o["Name"] || ""), phone: String(o["Phone"] || ""), street: String(o["Street"] || ""),
+    landmark: String(o["Landmark"] || ""), city: String(o["City"] || ""), state: String(o["State"] || ""), pincode: String(o["Pincode"] || "") };
+}
+function profileOf_(c) {
+  if (!c) return { name: "", phone: "", street: "", landmark: "", city: "", state: "", pincode: "" };
+  return { name: c.name, phone: c.phone, street: c.street, landmark: c.landmark, city: c.city, state: c.state, pincode: c.pincode };
+}
+function profileComplete_(p) { return !!(p.name && /^\d{10}$/.test(p.phone) && p.street && p.city && p.state && /^\d{6}$/.test(p.pincode)); }
+function hasPurchased_(email) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ORDERS_SHEET);
+  if (!sh || sh.getLastRow() < 2) return false;
+  var have = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  var ei = have.indexOf("Customer email"), ri = have.indexOf("Rank");
+  if (ei < 0 || ri < 0) return false;
+  var vals = sh.getRange(2, 1, sh.getLastRow() - 1, have.length).getValues();
+  for (var i = 0; i < vals.length; i++) {
+    var rk = num_(vals[i][ri]);
+    if (String(vals[i][ei]) === email && rk >= 6 && rk <= 8) return true;
+  }
+  return false;
+}
+function customerLogin_(d) {
+  var clientId = PropertiesService.getScriptProperties().getProperty("GOOGLE_CLIENT_ID");
+  if (!clientId) return { ok: false, error: "Sign-in is not set up yet." };
+  var cred = String(d.credential || "");
+  if (cred.length < 100 || cred.length > 4000) return { ok: false, error: "Sign-in failed. Please try again." };
+  var res = UrlFetchApp.fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(cred), { muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) return { ok: false, error: "Google sign-in could not be verified. Please try again." };
+  var t = JSON.parse(res.getContentText());
+  var okIss = t.iss === "accounts.google.com" || t.iss === "https://accounts.google.com";
+  if (t.aud !== clientId || !okIss || String(t.email_verified) !== "true" || !t.email || !(Number(t.exp) * 1000 > new Date().getTime())) {
+    return { ok: false, error: "Google sign-in could not be verified. Please try again." };
+  }
+  var email = String(t.email).toLowerCase(), sh = customersSheet_(), H = CUSTOMER_HEADERS, now = new Date();
+  var c = findCustomer_(email);
+  if (!c) {
+    var row = H.map(function () { return ""; });
+    row[idx_(H, "Email")] = email; row[idx_(H, "Google ID")] = String(t.sub || "");
+    row[idx_(H, "Name")] = clean_(t.name || "", 80).replace(/^'/, ""); row[idx_(H, "Created")] = now; row[idx_(H, "Last login")] = now;
+    sh.appendRow(row);
+    var r = sh.getLastRow();
+    sh.getRange(r, idx_(H, "Phone") + 1).setNumberFormat("@"); sh.getRange(r, idx_(H, "Pincode") + 1).setNumberFormat("@");
+    sh.getRange(r, idx_(H, "Created") + 1, 1, 2).setNumberFormat("dd-mmm-yyyy hh:mm");
+    c = findCustomer_(email);
+  } else {
+    sh.getRange(c.row, idx_(H, "Last login") + 1).setValue(now);
+  }
+  var p = profileOf_(c);
+  return { ok: true, session: makeSession_(email, String(t.sub || "")), user: { email: email, name: p.name || t.name || "", picture: String(t.picture || "") },
+    profile: p, profileComplete: profileComplete_(p) };
+}
+function customerMe_(me) {
+  var p = profileOf_(findCustomer_(me.email));
+  return { ok: true, user: { email: me.email, name: p.name }, profile: p, profileComplete: profileComplete_(p) };
+}
+function customerSaveProfile_(me, d) {
+  var c = findCustomer_(me.email);
+  if (!c) return { ok: false, error: "Account not found. Please sign in again." };
+  var phone = String(d.phone || "").replace(/\D/g, "").slice(-10);
+  var p = { name: clean_(d.name, 80), phone: phone, street: clean_(d.street, 200), landmark: clean_(d.landmark, 100),
+    city: clean_(d.city, 60), state: clean_(d.state, 60), pincode: String(d.pincode || "").replace(/\D/g, "") };
+  if (p.name.length < 2) return { ok: false, error: "Please enter your full name." };
+  if (!/^[6-9]\d{9}$/.test(p.phone)) return { ok: false, error: "Please enter a valid 10-digit mobile number." };
+  if (p.street.length < 5) return { ok: false, error: "Please enter your full address." };
+  if (p.city.length < 2) return { ok: false, error: "Please enter your city." };
+  if (p.state.length < 2) return { ok: false, error: "Please enter your state." };
+  if (!/^\d{6}$/.test(p.pincode)) return { ok: false, error: "Please enter a valid 6-digit pincode." };
+  var sh = customersSheet_(), H = CUSTOMER_HEADERS;
+  ["Name", "Phone", "Street", "Landmark", "City", "State", "Pincode"].forEach(function (h) {
+    var key = h.toLowerCase();
+    sh.getRange(c.row, idx_(H, h) + 1).setValue(p[key]);
+  });
+  return { ok: true, profile: profileOf_(findCustomer_(me.email)), profileComplete: true };
+}
+function customerOrders_(me) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ORDERS_SHEET);
+  if (!sh || sh.getLastRow() < 2) return [];
+  var have = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  function ix(h) { return have.indexOf(h); }
+  if (ix("Customer email") < 0) return [];
+  var out = [];
+  sh.getRange(2, 1, sh.getLastRow() - 1, have.length).getValues().forEach(function (r) {
+    if (String(r[ix("Customer email")]) !== me.email || num_(r[ix("Rank")]) < 4) return;
+    out.push({
+      id: String(r[ix("Order ID")]), date: iso_(r[ix("First seen")]), updated: iso_(r[ix("Last updated")]), rank: num_(r[ix("Rank")]),
+      items: String(r[ix("Items")]), subtotal: num_(r[ix("Subtotal")]), discount: num_(r[ix("Offer discount")]), upiDiscount: num_(r[ix("UPI discount")]),
+      total: num_(r[ix("Total payable")]), method: String(r[ix("Payment method")]), code: String(r[ix("Discount code")] || ""),
+      courier: ix("Courier") >= 0 ? String(r[ix("Courier")]) : "", tracking: ix("Tracking ID") >= 0 ? String(r[ix("Tracking ID")]) : ""
+    });
+  });
+  out.sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+  return out.slice(0, 100);
+}
+function adminSetTracking_(d) {
+  var sh = sheet_(ORDERS_SHEET, ORDER_HEADERS), H = ORDER_HEADERS, last = sh.getLastRow();
+  if (last < 2) return { ok: false, error: "not found" };
+  var hit = sh.getRange(2, 1, last - 1, 1).createTextFinder(clean_(d.orderId, 20)).matchEntireCell(true).findNext();
+  if (!hit) return { ok: false, error: "not found" };
+  sh.getRange(hit.getRow(), idx_(H, "Courier") + 1).setValue(clean_(d.courier, 40));
+  sh.getRange(hit.getRow(), idx_(H, "Tracking ID") + 1).setValue(clean_(d.tracking, 200));
+  return { ok: true };
+}
+
+/* ADMIN: customer reviews */
+function adminReviews_() {
+  var sh = sheet_(REVIEWS_SHEET, REVIEW_HEADERS), H = REVIEW_HEADERS;
+  if (sh.getLastRow() < 2) return [];
+  var out = sh.getRange(2, 1, sh.getLastRow() - 1, H.length).getValues().map(function (r) {
+    function g(h) { return r[idx_(H, h)]; }
+    return { id: String(g("Review ID")), date: iso_(g("Date")), status: String(g("Status") || "Pending"), name: String(g("Name")), product: String(g("Product")),
+      rating: num_(g("Rating")), comment: String(g("Comment")), images: [g("Photo 1"), g("Photo 2")].filter(function (x) { return x; }),
+      likes: num_(g("Likes")), email: String(g("Email") || ""), verified: String(g("Verified buyer")) === "Yes" };
+  });
+  out.sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+  return out.slice(0, 300);
+}
+function adminReviewStatus_(d) {
+  var st = { approve: "Approved", decline: "Declined", pending: "Pending" }[String(d.status)];
+  if (!st) return { ok: false, error: "unknown status" };
+  var sh = sheet_(REVIEWS_SHEET, REVIEW_HEADERS);
+  if (sh.getLastRow() < 2) return { ok: false, error: "not found" };
+  var hit = sh.getRange(2, 1, sh.getLastRow() - 1, 1).createTextFinder(clean_(d.id, 20)).matchEntireCell(true).findNext();
+  if (!hit) return { ok: false, error: "not found" };
+  sh.getRange(hit.getRow(), idx_(REVIEW_HEADERS, "Status") + 1).setValue(st);
+  return { ok: true, status: st };
+}
+function adminDeleteReview_(id) {
+  var sh = sheet_(REVIEWS_SHEET, REVIEW_HEADERS);
+  if (sh.getLastRow() < 2) return { ok: false, error: "not found" };
+  var hit = sh.getRange(2, 1, sh.getLastRow() - 1, 1).createTextFinder(clean_(id, 20)).matchEntireCell(true).findNext();
+  if (!hit) return { ok: false, error: "not found" };
+  sh.deleteRow(hit.getRow());
+  return { ok: true };
+}
+
+// Run this once from the editor (Run > authorizeAll) after pasting the script, then redeploy.
+function authorizeAll() {
+  [REVIEW_FOLDER, PRODUCT_FOLDER].forEach(function (n) {
+    var f = DriveApp.getFoldersByName(n);
+    if (!f.hasNext()) DriveApp.createFolder(n);
+  });
+  MailApp.getRemainingDailyQuota();
+  UrlFetchApp.fetch("https://oauth2.googleapis.com/tokeninfo?id_token=test", { muteHttpExceptions: true });
+}
+
 /* REVIEWS */
 function saveReview_(d) {
-  var sh = sheet_(REVIEWS_SHEET, REVIEW_HEADERS);
-  var name = clean_(d.name, 40), comment = clean_(d.comment, 400);
-  if (name.length < 2 || comment.length < 5) return;
+  var cust = findCustomer_(d._email);
+  if (!cust || !cust.name) return { ok: false, error: "Please complete your profile first." };
+  var sh = sheet_(REVIEWS_SHEET, REVIEW_HEADERS), H = REVIEW_HEADERS;
+  var comment = clean_(d.comment, 400);
+  if (comment.length < 5) return { ok: false, error: "Please write a short comment." };
+  // at most 3 reviews per customer per day
+  var last = sh.getLastRow(), since = new Date().getTime() - 864e5, count = 0;
+  if (last > 1) {
+    sh.getRange(Math.max(2, last - 199), 1, last - Math.max(2, last - 199) + 1, H.length).getValues().forEach(function (r) {
+      if (String(r[idx_(H, "Email")]) === d._email && new Date(r[1]).getTime() > since) count++;
+    });
+  }
+  if (count >= 3) return { ok: false, error: "You have reached today's review limit. Please try again tomorrow." };
   var id = "R" + Utilities.getUuid().replace(/-/g, "").substring(0, 10);
-  var urls = [];
-  var imgs = (d.images || []).slice(0, 2);
+  var urls = [], imgs = (d.images || []).slice(0, 2);
   for (var i = 0; i < imgs.length; i++) {
     var u = saveImage_(imgs[i], id + "-" + (i + 1), REVIEW_FOLDER);
     if (u) urls.push(u);
   }
   var rating = Math.max(1, Math.min(5, Math.round(num_(d.rating)) || 5));
-  sh.appendRow([id, new Date(), "Pending", name, clean_(d.product, 120), rating, comment, urls[0] || "", urls[1] || "", 0]);
+  var verified = hasPurchased_(d._email) ? "Yes" : "No";
+  var name = clean_(cust.name, 40).replace(/^'/, "");
+  sh.appendRow([id, new Date(), "Pending", name, clean_(d.product, 120), rating, comment, urls[0] || "", urls[1] || "", 0, d._email, verified]);
   sh.getRange(sh.getLastRow(), 2).setNumberFormat("dd-mmm-yyyy hh:mm");
   if (OWNER_EMAIL) {
     try {
       MailApp.sendEmail(OWNER_EMAIL, "New OtakuOriginals review (pending approval)",
-        name + " rated " + rating + "/5\n\n" + comment + "\n\nOpen the 'Reviews' sheet and set Status to Approved to publish.");
+        name + " rated " + rating + "/5" + (verified === "Yes" ? " (verified buyer)" : "") + "\n\n" + comment + "\n\nOpen your admin panel > Customer love to approve or decline it.");
     } catch (x) { /* email is optional */ }
   }
+  return { ok: true };
 }
 function approvedReviews_() {
   var sh = sheet_(REVIEWS_SHEET, REVIEW_HEADERS);
@@ -532,7 +742,7 @@ function approvedReviews_() {
     if (String(r[2]).trim().toLowerCase() !== "approved") continue;
     out.push({
       id: r[0], name: r[3], product: r[4], rating: r[5], comment: r[6],
-      images: [r[7], r[8]].filter(function (x) { return x; }), likes: num_(r[9]),
+      images: [r[7], r[8]].filter(function (x) { return x; }), likes: num_(r[9]), verified: String(r[11]) === "Yes",
       date: Utilities.formatDate(new Date(r[1]), Session.getScriptTimeZone(), "yyyy-MM-dd")
     });
     if (out.length >= 60) break;

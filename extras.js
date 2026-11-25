@@ -119,7 +119,7 @@
         <div class="rv-body">
           <div class="rv-stars" aria-label="${rating} out of 5 stars">${stars(rating)}</div>
           <p>${esc(r.comment)}</p>
-          <div class="rv-meta"><strong>${esc(r.name)}</strong>${r.product ? " · " + esc(r.product) : ""}</div>
+          <div class="rv-meta"><strong>${esc(r.name)}</strong>${r.verified ? ' <span class="vb" title="This customer bought from us">✓ Verified buyer</span>' : ""}${r.product ? " · " + esc(r.product) : ""}</div>
           <button type="button" class="like ${liked.has(id) ? "on" : ""}" data-like="${esc(id)}" data-count="${likes}" aria-pressed="${liked.has(id)}">♥ <span>${likes}</span></button>
         </div></article>`;
     }).join("");
@@ -157,7 +157,16 @@
     const fillProducts = () => { $("#reviewProduct").innerHTML = '<option value="">Select a product</option>' + PRODUCTS.map((p) => `<option>${esc(p.name)}</option>`).join(""); };
     fillProducts();
     document.addEventListener("oo:products", fillProducts);   // products can load a moment later from the admin list
-    $("#openReview").addEventListener("click", () => OO.openModal("reviewModal"));
+    const openReviewForm = () => {
+      const u = window.OOAuth && OOAuth.user();
+      if (u) { const n = form.elements.name; n.value = u.name || ""; n.readOnly = true; }
+      else { form.elements.name.readOnly = false; }
+      OO.openModal("reviewModal");
+    };
+    $("#openReview").addEventListener("click", () => {
+      if (window.OOAuth && OOAuth.enabled()) OOAuth.whenConfigured().then(() => { OOAuth.gated() ? OOAuth.require("review", openReviewForm) : openReviewForm(); });
+      else openReviewForm();
+    });
 
     grid.addEventListener("click", (e) => {
       const b = e.target.closest("[data-like]"); if (!b) return;
@@ -198,7 +207,15 @@
         window.open(waLink(`Review for OtakuOriginals\nName: ${name}\nProduct: ${product || "-"}\nRating: ${rating}/5\n${comment}\n(I will attach my photos here)`), "_blank");
         toast("Opening WhatsApp so you can send your review");
       } else {
-        const ok = await OO.postToSheet({ type: "review", name, product, rating, comment, images: photos }, false);
+        const gate = window.OOAuth && OOAuth.gated();
+        let ok;
+        if (gate) {
+          const d = await OOAuth.call({ type: "review", name, product, rating, comment, images: photos });
+          ok = d && d.ok;
+          if (!ok) { err.textContent = (d && d.error) || "Could not send. Please try again."; btn.disabled = false; btn.textContent = "Submit review"; return; }
+        } else {
+          ok = await OO.postToSheet({ type: "review", name, product, rating, comment, images: photos }, false);
+        }
         toast(ok ? "Thank you! Your review will appear after a quick check." : "Could not send. Please try again.");
         if (!ok) { btn.disabled = false; btn.textContent = "Submit review"; return; }
       }
