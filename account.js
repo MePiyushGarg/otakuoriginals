@@ -20,6 +20,9 @@
   let clientId = "", cfgDone = false, cfgPromise = null, pending = null, gsiPromise = null, orders = null, tab = "orders";
   try { clientId = localStorage.getItem(GID_KEY) || ""; } catch (e) { /* ignore */ }
 
+  let wish = new Set();
+  try { (JSON.parse(localStorage.getItem("oo_wish_v1")) || []).forEach((n) => wish.add(+n)); } catch (e) { /* ignore */ }
+  const saveWish = () => { try { localStorage.setItem("oo_wish_v1", JSON.stringify(Array.from(wish))); } catch (e) { /* ignore */ } };
   const save = () => { try { S ? localStorage.setItem(KEY, JSON.stringify(S)) : localStorage.removeItem(KEY); } catch (e) { /* ignore */ } };
   const enabled = () => !!URL_();
   const gated = () => enabled() && !!clientId;                 // customers must sign in only when Google sign-in is set up
@@ -76,6 +79,7 @@
   function paintHeader() {
     const b = $("#acctBtn"); if (!b) return;
     b.hidden = !enabled() || (cfgDone && !clientId);
+    document.body.classList.toggle("acct-on", !!clientId);
     if (S) {
       const first = String(S.user.name || S.user.email || "").split(/[\s@]/)[0];
       b.innerHTML = `<span class="av">${S.user.picture ? `<img src="${esc(S.user.picture)}" alt="" referrerpolicy="no-referrer">` : esc(initials(S.user.name || S.user.email))}</span><span class="acct-label">${esc(first)}</span>`;
@@ -84,6 +88,49 @@
       b.innerHTML = `<svg viewBox="0 0 24 24" class="icon"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span class="acct-label">Sign in</span>`;
       b.setAttribute("aria-label", "Sign in or sign up");
     }
+  }
+
+  /* ---------- wishlist ---------- */
+  function paintWish() {
+    $$("[data-wish]").forEach((b) => { const on = wish.has(+b.dataset.wish); b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
+      if (b.classList.contains("wish-text")) b.textContent = on ? "♥ Saved to wishlist" : "♡ Save to wishlist"; });
+  }
+  function pushWish() { if (S) call({ type: "customerWishlist", ids: Array.from(wish) }); }
+  function mergeWish(list) {
+    let changed = false;
+    (list || []).forEach((n) => { if (!wish.has(+n)) { wish.add(+n); } });
+    saveWish(); paintWish();
+    return changed;
+  }
+  function toggleWish(id) {
+    const run = (force) => {
+      const on = force === undefined ? !wish.has(id) : force; on ? wish.add(id) : wish.delete(id);
+      saveWish(); paintWish(); pushWish(); toast(on ? "Saved to your wishlist ♥" : "Removed from wishlist");
+    };
+    if (gated() && !S) { window.OOAuth.require("wishlist", () => run(true)); return; }
+    run();
+  }
+  function savedView() {
+    const list = OO.products().filter((p) => wish.has(p.id));
+    $("#acctBody").innerHTML = list.length ? list.map((p) => `<article class="ord saved">
+        <div class="sv-row"><img src="${esc(p.image)}" alt="" loading="lazy" onerror="this.style.display='none'"><div><b>${esc(p.name)}</b><div class="muted small">${inr(p.price)}${p.inStock ? "" : " · Out of stock"}</div></div></div>
+        <div class="sv-act">${p.inStock ? `<button type="button" class="btn btn-primary" data-sv-add="${p.id}">Add to cart</button>` : (C.sheetWebhookUrl ? `<button type="button" class="btn btn-ghost" data-sv-notify="${p.id}">🔔 Notify me</button>` : "")}
+        <button type="button" class="btn btn-ghost" data-sv-rm="${p.id}">Remove</button></div></article>`).join("")
+      : `<p class="muted" style="text-align:center;padding:20px 0">Nothing saved yet. Tap the ♥ on any product.</p>`;
+  }
+
+  /* ---------- back-in-stock ---------- */
+  function notify(id) {
+    const p = OO.products().find((x) => x.id === id); if (!p) return;
+    if (S) {
+      call({ type: "notify", productId: id, productName: p.name }).then((d) => toast(d && d.ok ? "We will email " + S.user.email + " when it is back 🔔" : (d && d.error) || "Could not save. Please try again."));
+      return;
+    }
+    openModal();
+    show(`<h3>Get notified</h3><p class="muted small">We will email you once <b>${esc(p.name)}</b> is back in stock. One email, no spam.</p>
+      <form id="notifyForm" novalidate><label>Your email<input type="email" name="email" autocomplete="email" inputmode="email" required></label>
+      <p class="err" id="notifyErr" role="alert"></p><button type="submit" class="btn btn-primary block">Notify me</button></form>`);
+    const f = $("#notifyForm"); f.dataset.pid = id; f.dataset.pname = p.name; f.elements.email.focus();
   }
 
   /* ---------- modal views ---------- */
@@ -127,6 +174,7 @@
     const d = await call({ type: "customerLogin", credential: resp && resp.credential }, false);
     if (!d || !d.ok) { await signInView(); const e = $("#authErr"); if (e) e.textContent = (d && d.error) || "Sign-in failed. Please try again."; return; }
     S = { session: d.session, user: d.user, profile: d.profile, complete: !!d.profileComplete }; save(); paintHeader(); orders = null;
+    mergeWish(d.wishlist); pushWish();
     if (!S.complete) return profileView(true);
     finishLogin();
   }
@@ -197,9 +245,10 @@
     const u = S.user;
     show(`<div class="acct-head"><span class="av lg">${u.picture ? `<img src="${esc(u.picture)}" alt="" referrerpolicy="no-referrer">` : esc(initials(u.name))}</span>
         <div><b>${esc(u.name || "Welcome")}</b><div class="muted small">${esc(u.email)}</div></div></div>
-      <div class="tabs" role="tablist"><button type="button" data-tab="orders" class="${tab === "orders" ? "on" : ""}">My orders</button><button type="button" data-tab="details" class="${tab === "details" ? "on" : ""}">My details</button></div>
+      <div class="tabs" role="tablist"><button type="button" data-tab="orders" class="${tab === "orders" ? "on" : ""}">My orders</button><button type="button" data-tab="saved" class="${tab === "saved" ? "on" : ""}">Saved</button><button type="button" data-tab="details" class="${tab === "details" ? "on" : ""}">My details</button></div>
       <div id="acctBody"></div>
       <button type="button" class="link-btn" id="authSignOut">Sign out</button>`);
+    if (tab === "saved") { savedView(); return; }
     if (tab === "details") { $("#acctBody").innerHTML = profileForm(S.profile, "Save details"); return; }
     const body = $("#acctBody");
     if (orders) { body.innerHTML = orders.length ? orders.map(orderCard).join("") : `<p class="muted" style="text-align:center;padding:20px 0">No orders yet. Your orders will show here.</p>`; return; }
@@ -222,10 +271,23 @@
     if (!e.target.closest("#authModal")) return;
     const t = e.target.closest("[data-tab]"); if (t) { accountView(t.dataset.tab); return; }
     if (e.target.closest("#authSignOut")) { signOut(); return; }
-    if (e.target.closest("#ordersRetry")) { orders = null; accountView("orders"); }
+    if (e.target.closest("#ordersRetry")) { orders = null; accountView("orders"); return; }
+    const sa = e.target.closest("[data-sv-add]"); if (sa) { OO.addToCart(+sa.dataset.svAdd); return; }
+    const sr = e.target.closest("[data-sv-rm]"); if (sr) { wish.delete(+sr.dataset.svRm); saveWish(); paintWish(); pushWish(); savedView(); return; }
+    const sn = e.target.closest("[data-sv-notify]"); if (sn) { notify(+sn.dataset.svNotify); }
   });
   document.addEventListener("submit", (e) => {
     if (e.target.id === "profileForm") { e.preventDefault(); saveProfile(e.target, !S.complete); }
+    if (e.target.id === "notifyForm") {
+      e.preventDefault();
+      const f = e.target, em = f.elements.email.value.trim(), err = $("#notifyErr");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)) { err.textContent = "Please enter a valid email address."; return; }
+      const btn = f.querySelector("button"); btn.disabled = true; btn.textContent = "Saving…";
+      call({ type: "notify", productId: +f.dataset.pid, productName: f.dataset.pname, email: em }, false).then((d) => {
+        if (d && d.ok) { show(`<div class="thanks"><div class="tick" aria-hidden="true">✓</div><h3>You are on the list</h3><p class="muted">We will email <b>${esc(em)}</b> when it is back in stock.</p></div>`); }
+        else { err.textContent = (d && d.error) || "Could not save. Please try again."; btn.disabled = false; btn.textContent = "Notify me"; }
+      });
+    }
   });
 
   /* ---------- API for the rest of the site ---------- */
@@ -240,7 +302,7 @@
       pending = cb; openModal();
       loadConfig().then(() => {
         if (!gated()) { pending = null; closeModal(); cb(); return; }
-        if (!S) signInView(reason === "checkout" ? "Sign in to place your order. It takes a few seconds." : reason === "review" ? "Sign in to share a review." : "");
+        if (!S) signInView(reason === "checkout" ? "Sign in to place your order. It takes a few seconds." : reason === "review" ? "Sign in to share a review." : reason === "wishlist" ? "Sign in to save items to your wishlist." : "");
         else if (!S.complete) profileView(true);
         else { pending = null; closeModal(); cb(); }
       });
@@ -250,7 +312,7 @@
       if (!gated()) return true;
       if (!S || !S.session) return false;
       const d = await call({ type: "customerMe" });
-      if (d && d.ok) { S.profile = d.profile; S.complete = !!d.profileComplete; save(); return S.complete; }
+      if (d && d.ok) { S.profile = d.profile; S.complete = !!d.profileComplete; save(); mergeWish(d.wishlist); return S.complete; }
       return !!(d && !d.login && /connect|slow|taking/i.test(d.error || "")) ? null : false;   // null = could not check (network)
     },
     prefill(form) {
@@ -260,7 +322,7 @@
       });
       const who = $("#signedAs"); if (who) { who.hidden = false; who.innerHTML = `Ordering as <b>${esc(S.user.email)}</b>`; }
     },
-    open, refreshOrders() { orders = null; }
+    open, refreshOrders() { orders = null; }, paintWish, toggleWish, notify
   };
 
   paintHeader();

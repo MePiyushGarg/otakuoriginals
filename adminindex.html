@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <title>OtakuOriginals Admin</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="admin.css?v=5">
+</head>
+<body>
+
+  <!-- ============ LOGIN ============ -->
+  <main class="login" id="loginView">
+    <form class="login-card" id="loginForm" autocomplete="on">
+      <div class="brand"><span class="logo">OO</span><div>Otaku<b>Originals</b><small>Admin console</small></div></div>
+      <h1>Sign in</h1>
+      <p class="muted">Manage orders, abandoned checkouts and products.</p>
+      <div class="conn" id="conn" data-s="check"><i></i><span id="connText">Checking connection…</span></div>
+      <label>Username
+        <input type="text" id="user" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      </label>
+      <label>Password
+        <span class="pw"><input type="password" id="pass" name="password" autocomplete="current-password" required>
+          <button type="button" id="pwToggle" aria-label="Show password">Show</button></span>
+      </label>
+      <p class="err" id="loginErr" role="alert"></p>
+      <button class="btn primary block" type="submit" id="loginBtn">Sign in</button>
+    </form>
+  </main>
+
+  <!-- ============ APP ============ -->
+  <div class="shell" id="appView" hidden>
+
+    <aside class="side">
+      <div class="brand"><span class="logo">OO</span><div>Otaku<b>Originals</b><small>Admin console</small></div></div>
+      <nav class="nav" id="nav">
+        <button data-view="overview" class="on"><svg viewBox="0 0 24 24"><path d="M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg><span>Overview</span></button>
+        <button data-view="orders"><svg viewBox="0 0 24 24"><path d="M6 2h12l2 5v13H4V7zM4 7h16M9 11h6"/></svg><span>Orders</span><em id="nOrders">0</em></button>
+        <button data-view="reviews"><svg viewBox="0 0 24 24"><path d="M12 21s-8-5-8-11a4.5 4.5 0 018-2.8A4.5 4.5 0 0120 10c0 6-8 11-8 11z"/></svg><span>Customer love</span><em id="nReviews">0</em></button>
+        <button data-view="discounts"><svg viewBox="0 0 24 24"><path d="M20 12l-8 8-9-9V3h8zM7.5 7.5h.01"/></svg><span>Discounts</span><em id="nDisc">0</em></button>
+        <button data-view="products"><svg viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/></svg><span>Products</span><em id="nProducts">0</em></button>
+      </nav>
+      <a class="store-link" href="../" target="_blank" rel="noopener">View store ↗</a>
+    </aside>
+
+    <div class="main">
+      <header class="top">
+        <div>
+          <h1 id="viewTitle">Overview</h1>
+          <p class="muted" id="viewSub"></p>
+        </div>
+        <div class="top-actions">
+          <span class="updated" id="updated"></span>
+          <button class="btn ghost sm" id="refreshBtn">↻ Refresh</button>
+          <button class="btn ghost sm" id="logoutBtn">Log out</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <!-- Overview -->
+        <section id="vOverview">
+          <div class="kpis" id="kpis"></div>
+          <div class="card chart-card">
+            <div class="card-h"><h2>Revenue</h2>
+              <div class="chips" id="revToggle"><button class="chip on" data-rmode="daily">Last 30 days</button><button class="chip" data-rmode="monthly">By month</button></div></div>
+            <div id="revChart" class="rev-chart"></div>
+            <p class="foot-note">Revenue counts confirmed, shipped and delivered orders, by the date the order was placed (India time).</p>
+          </div>
+          <div class="kpis kpis3" id="kpis2"></div>
+          <div class="grid2">
+            <div class="card"><div class="card-h"><h2>Payment mix</h2></div><div id="ovMix" class="mixwrap"></div></div>
+            <div class="card"><div class="card-h"><h2>Best sellers</h2></div><div id="ovTop" class="rows"></div></div>
+          </div>
+          <div class="grid2">
+            <div class="card"><div class="card-h"><h2>Needs your attention</h2><button class="link" data-go="orders">View all</button></div><div id="ovNew" class="rows"></div></div>
+            <div class="card"><div class="card-h"><h2>Discounts running now</h2><button class="link" data-go="discounts">Manage</button></div><div id="ovDisc" class="rows"></div></div>
+          </div>
+        </section>
+
+        <!-- Orders / Abandoned -->
+        <section id="vOrders" hidden>
+          <div class="toolbar">
+            <input type="search" id="orderSearch" placeholder="Search name, phone or order ID">
+            <div class="chips" id="chips"></div>
+            <button class="btn sm" id="exportBtn">⬇ Export</button>
+          </div>
+          <div id="orderList" class="rows card"></div>
+        </section>
+
+        <!-- Customer love -->
+        <section id="vReviews" hidden>
+          <div class="toolbar">
+            <p class="muted">Reviews appear on your store only after you approve them.</p>
+            <div class="chips" id="rvChips"></div>
+          </div>
+          <div id="reviewList" class="rows card"></div>
+        </section>
+
+        <!-- Discounts -->
+        <section id="vDiscounts" hidden>
+          <div class="toolbar">
+            <p class="muted">Automatic offers apply to everyone. Code offers are vouchers you can hand to a creator or a customer.</p>
+            <button class="btn primary" id="addDiscountBtn">＋ Create discount</button>
+          </div>
+          <div id="discountList" class="rows card"></div>
+        </section>
+
+        <!-- Products -->
+        <section id="vProducts" hidden>
+          <div class="toolbar">
+            <p class="muted">Products shown on your store. Adding your first product here replaces the sample product.</p>
+            <button class="btn primary" id="addProductBtn">＋ Add product</button>
+          </div>
+          <div id="productList" class="rows card"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ORDER DETAIL ============ -->
+  <div class="drawer-wrap" id="drawerWrap" hidden>
+    <div class="scrim" id="drawerScrim"></div>
+    <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Order details"></aside>
+  </div>
+
+  <!-- ============ PRODUCT FORM ============ -->
+  <div class="modal" id="productModal" hidden>
+    <form class="modal-card" id="productForm" novalidate>
+      <div class="modal-head">
+        <h2 id="productFormTitle">Add product</h2>
+        <button type="button" class="x" id="productClose" aria-label="Close">✕</button>
+      </div>
+
+      <label>Product name *
+        <input type="text" name="name" maxlength="120" required>
+      </label>
+      <div class="two">
+        <label>Category *
+          <span class="sel-row"><select name="category" id="catSelect"></select>
+            <button type="button" class="btn sm" id="catAdd" title="Add a new category">＋ New</button></span>
+          <button type="button" class="link rm-opt" id="catRemove" hidden>Remove this category from the list</button>
+        </label>
+        <label>Badge
+          <span class="sel-row"><select name="badge" id="badgeSelect"></select>
+            <button type="button" class="btn sm" id="badgeAdd" title="Add a new badge">＋ New</button></span>
+          <button type="button" class="link rm-opt" id="badgeRemove" hidden>Remove this badge from the list</button>
+        </label>
+      </div>
+      <div class="two">
+        <label>Selling price (₹) *
+          <input type="number" name="price" min="1" step="1" inputmode="numeric" required>
+        </label>
+        <label>Original price (₹)
+          <input type="number" name="originalPrice" min="0" step="1" inputmode="numeric" placeholder="for the discount tag">
+        </label>
+      </div>
+      <label>Description
+        <textarea name="description" rows="3" maxlength="600" placeholder="What makes it special? Size, material, etc."></textarea>
+      </label>
+
+      <div class="photos">
+        <span class="lbl">Photos (up to 5, the first is the main photo)</span>
+        <div class="thumbs" id="thumbs"></div>
+        <div class="photo-actions">
+          <label class="btn ghost sm" for="photoFile">📷 Add photos</label>
+          <input type="file" id="photoFile" accept="image/*" multiple hidden>
+          <div class="url-add">
+            <input type="url" id="photoUrl" placeholder="…or paste an image link (https://…)">
+            <button type="button" class="btn ghost sm" id="photoUrlBtn">Add</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="checks">
+        <label class="check"><input type="checkbox" name="inStock" checked> In stock</label>
+        <label class="check"><input type="checkbox" name="active" checked> Show on website</label>
+      </div>
+
+      <p class="err" id="productErr" role="alert"></p>
+      <div class="modal-foot">
+        <button type="button" class="btn ghost" id="productCancel">Cancel</button>
+        <button type="submit" class="btn primary" id="productSave">Save product</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ============ DISCOUNT FORM ============ -->
+  <div class="modal" id="discountModal" hidden>
+    <form class="modal-card" id="discountForm" novalidate>
+      <div class="modal-head">
+        <h2 id="discountFormTitle">Create discount</h2>
+        <button type="button" class="x" id="discountClose" aria-label="Close">✕</button>
+      </div>
+
+      <label>Title * <small class="muted">(what customers see)</small>
+        <input type="text" name="title" maxlength="60" placeholder="e.g. Festive Sale or Rahul special" required>
+      </label>
+
+      <div class="two">
+        <label>Discount type
+          <select name="type"><option value="percent">Percent off (%)</option><option value="flat">Flat amount off (₹)</option></select>
+        </label>
+        <label>Value *
+          <input type="number" name="value" min="1" step="1" inputmode="numeric" required>
+        </label>
+      </div>
+
+      <label>Minimum order (₹) <small class="muted">(optional, 0 = none)</small>
+        <input type="number" name="min" min="0" step="1" inputmode="numeric" placeholder="0">
+      </label>
+
+      <div class="seg">
+        <span class="lbl">Who gets it?</span>
+        <label class="radio"><input type="radio" name="mode" value="auto" checked> <span><b>Everyone, automatically</b><small>Applied in every cart. No code needed.</small></span></label>
+        <label class="radio"><input type="radio" name="mode" value="code"> <span><b>Only with a code (voucher)</b><small>For creators, giveaways or special customers.</small></span></label>
+      </div>
+
+      <div id="codeFields" hidden>
+        <div class="two">
+          <label>Code *
+            <span class="sel-row"><input type="text" name="code" maxlength="20" autocapitalize="characters" spellcheck="false" placeholder="e.g. RAHUL10">
+              <button type="button" class="btn sm" id="genCode">Generate</button></span>
+          </label>
+          <label>Usage limit <small class="muted">(0 = unlimited)</small>
+            <input type="number" name="maxUses" min="0" step="1" inputmode="numeric" placeholder="0">
+          </label>
+        </div>
+      </div>
+
+      <div class="seg">
+        <span class="lbl">How long does it run?</span>
+        <label class="radio"><input type="radio" name="dur" value="life" checked> <span><b>Lifetime</b><small>Runs until you pause or delete it.</small></span></label>
+        <label class="radio"><input type="radio" name="dur" value="range"> <span><b>Certain period</b><small>Pick the dates.</small></span></label>
+      </div>
+      <div class="two" id="dateFields" hidden>
+        <label>Start date <input type="date" name="start"></label>
+        <label>End date (included) <input type="date" name="end"></label>
+      </div>
+
+      <label class="check show-main"><input type="checkbox" name="showOnSite"> <span><b>Show on the main page</b><small>Lists this offer in the Offers section of your store. Leave unticked to keep a code private.</small></span></label>
+
+      <label>Short description <small class="muted">(optional, shown on the main page)</small>
+        <input type="text" name="description" maxlength="200" placeholder="e.g. Thanks for supporting us!">
+      </label>
+
+      <div class="checks"><label class="check"><input type="checkbox" name="active" checked> Active</label></div>
+
+      <p class="err" id="discountErr" role="alert"></p>
+      <div class="modal-foot">
+        <button type="button" class="btn ghost" id="discountCancel">Cancel</button>
+        <button type="submit" class="btn primary" id="discountSave">Save discount</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ============ EXPORT ============ -->
+  <div class="modal" id="exportModal" hidden>
+    <div class="modal-card" style="max-width:420px">
+      <div class="modal-head"><h2>Export orders</h2><button type="button" class="x" id="exportClose" aria-label="Close">✕</button></div>
+      <p class="muted" style="margin:0 0 12px">Downloads a spreadsheet file (CSV) with name, phone, address, items, amounts, payment and tracking. Opens in Excel and Google Sheets.</p>
+      <label>Which orders?
+        <select id="exportWhich"></select>
+      </label>
+      <label>Date range
+        <select id="exportRange"><option value="all">All time</option><option value="today">Today</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="month">This month</option></select>
+      </label>
+      <p class="err" id="exportErr" role="alert"></p>
+      <div class="modal-foot"><button type="button" class="btn ghost" id="exportCancel">Cancel</button><button type="button" class="btn primary" id="exportGo">Download CSV</button></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="../products.js"></script>
+  <script src="../settings.js"></script>
+  <script src="admin.js?v=6"></script>
+</body>
+</html>

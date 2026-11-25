@@ -642,3 +642,17 @@ h1, h2, h3, h4, .brand { font-family: var(--display); letter-spacing: -0.02em; }
 .signed-as { font-size: .82rem; margin: 0 0 10px; padding: 6px 10px; background: #e8f7ee; border: 2px solid var(--ink); border-radius: var(--radius); }
 .vb { font-size: .7rem; font-weight: 700; color: #167a3a; white-space: nowrap; }
 input[readonly] { background: #f1f1f1; }
+
+/* ===== v3.5 wishlist + notify ===== */
+.wish { display: none; position: absolute; bottom: 8px; right: 8px; z-index: 3; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--ink); background: var(--card); color: #aaa; font-size: 1.05rem; line-height: 1; cursor: pointer; place-items: center; padding: 0; }
+body.acct-on .wish { display: grid; }
+.wish.on { color: var(--accent); }
+.wish-text { display: none; margin-top: 8px; }
+body.acct-on .wish-text { display: block; }
+.wish-text.on { color: var(--accent); }
+.saved .sv-row { display: flex; gap: 10px; align-items: center; }
+.saved .sv-row img { width: 56px; height: 56px; object-fit: cover; border-radius: 4px; border: 2px solid var(--ink); }
+.saved .sv-row > div { min-width: 0; overflow-wrap: anywhere; }
+.sv-act { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.sv-act .btn { flex: 1; padding: 9px 10px; font-size: .85rem; }
+.thanks { text-align: center; }

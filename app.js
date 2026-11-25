@@ -132,6 +132,7 @@
           ${p.badge ? `<span class="badge">${esc(p.badge)}</span>` : ""}
           ${off ? `<span class="badge off">-${off}%</span>` : ""}
           ${!p.inStock ? `<div class="sold">Out of Stock</div>` : ""}
+          <button type="button" class="wish" data-wish="${p.id}" aria-label="Save ${esc(p.name)} to wishlist" aria-pressed="false">♥</button>
         </div>
         <div class="card-body">
           <span class="card-cat">${esc(p.category)}</span>
@@ -141,12 +142,14 @@
             ${off ? `<span class="old">${inr(p.originalPrice)}</span>` : ""}
           </div>
         </div>
-        <button class="btn btn-ghost" data-add="${p.id}" ${p.inStock ? "" : "disabled"}>${p.inStock ? "Add to Cart" : "Sold Out"}</button>
+        ${p.inStock ? `<button class="btn btn-ghost" data-add="${p.id}">Add to Cart</button>`
+          : STORE_CONFIG.sheetWebhookUrl ? `<button class="btn btn-ghost" data-notify="${p.id}">🔔 Notify me</button>` : `<button class="btn btn-ghost" disabled>Sold Out</button>`}
       </article>`;
     }).join("");
 
     $$("img", grid).forEach((img) => img.addEventListener("error", () => { img.src = FALLBACK_IMG; }, { once: true }));
     observeReveals();
+    if (window.OOAuth) OOAuth.paintWish();
   }
 
   /* ---------- Scroll reveal ---------- */
@@ -496,10 +499,13 @@
         </div>
         <span class="stock ${p.inStock ? "in" : "out"}">${p.inStock ? "● In Stock (verified at order confirmation)" : "● Currently Out of Stock"}</span>
         <p class="muted" style="margin:0">${esc(p.description)}</p>
-        <button class="btn btn-primary block" data-add="${p.id}" data-closeqv ${p.inStock ? "" : "disabled"}>${p.inStock ? "Add to Cart" : "Sold Out"}</button>
+        ${p.inStock ? `<button class="btn btn-primary block" data-add="${p.id}" data-closeqv>Add to Cart</button>`
+          : STORE_CONFIG.sheetWebhookUrl ? `<button class="btn btn-primary block" data-notify="${p.id}">🔔 Notify me when it is back</button>` : `<button class="btn btn-primary block" disabled>Sold Out</button>`}
+        <button type="button" class="btn btn-ghost block wish-text" data-wish="${p.id}" aria-pressed="false">♥ Save to wishlist</button>
       </div>`;
     state.gallery = { imgs: galleryImages(p), i: 0 };
     openModal("quickModal");
+    if (window.OOAuth) OOAuth.paintWish();
   }
 
   /* ---------- Product photo gallery (quick view) ---------- */
@@ -897,6 +903,10 @@
     $("#productGrid").addEventListener("click", (e) => {
       const add = e.target.closest("[data-add]");
       if (add) { e.stopPropagation(); addToCart(+add.dataset.add); return; }
+      const wi = e.target.closest("[data-wish]");
+      if (wi) { e.stopPropagation(); window.OOAuth && OOAuth.toggleWish(+wi.dataset.wish); return; }
+      const nt = e.target.closest("[data-notify]");
+      if (nt) { e.stopPropagation(); window.OOAuth && OOAuth.notify(+nt.dataset.notify); return; }
       const card = e.target.closest(".card");
       if (card) openQuickView(+card.dataset.id);
     });
@@ -907,7 +917,11 @@
     // Quick view add
     $("#quickContent").addEventListener("click", (e) => {
       const add = e.target.closest("[data-add]");
-      if (add) { addToCart(+add.dataset.add); closeModal($("#quickModal")); openDrawer(); }
+      if (add) { addToCart(+add.dataset.add); closeModal($("#quickModal")); openDrawer(); return; }
+      const wi = e.target.closest("[data-wish]");
+      if (wi) { window.OOAuth && OOAuth.toggleWish(+wi.dataset.wish); return; }
+      const nt = e.target.closest("[data-notify]");
+      if (nt) { closeModal($("#quickModal")); window.OOAuth && OOAuth.notify(+nt.dataset.notify); }
     });
 
     // Cart drawer
@@ -1031,7 +1045,7 @@
   }
 
   /* ---------- Shared helpers for extras.js ---------- */
-  window.OO = { esc, inr, toast, openModal, closeModal, closeAll, postToSheet, observeReveals, FALLBACK_IMG, config: STORE_CONFIG };
+  window.OO = { esc, inr, toast, openModal, closeModal, closeAll, postToSheet, observeReveals, FALLBACK_IMG, config: STORE_CONFIG, addToCart, openDrawer, products: () => PRODUCTS };
 
   /* ---------- Init ---------- */
   initStoreInfo();
