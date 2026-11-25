@@ -9,7 +9,7 @@ Object.assign(STORE_CONFIG, {
 
   // 1) Google Sheet link (the Web app URL ending in /exec). See google-apps-script.gs
   //    Example: "https://script.google.com/macros/s/AKfycb.../exec"
-  sheetWebhookUrl: "https://script.google.com/macros/s/AKfycbw6bB8LJ1e3a7rlzD5_tP1TaRHtmfn_T56HiRrQVCGfF70Gf7xN7o-JqN1bhNd8vTM/exec",
+  sheetWebhookUrl: "https://script.google.com/macros/s/AKfycbz1CpL7z8zIkJCiJcyWfm9ow0Fp-86qQfyyeJHGS8rfv-iRYHwFtwwHB2cSJKWJmKjp/exec",
 
   // 2) Your UPI ID. Customers pay this ID. Example: "piyush@okhdfcbank" or "9115521711@ybl"
   upiId: "itspiyushgarg@sbi",
