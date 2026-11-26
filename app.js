@@ -75,6 +75,7 @@
     };
   }
   function setProducts(list) { PRODUCTS.splice(0, PRODUCTS.length, ...list.map(normProduct).filter((p) => Number.isFinite(p.id) && p.name)); }
+  const DEFAULT_PRODUCTS = PRODUCTS.slice();
   function applyCachedProducts() {
     if (!STORE_CONFIG.sheetWebhookUrl) return;
     try {
@@ -89,7 +90,11 @@
       const r = await fetch(STORE_CONFIG.sheetWebhookUrl + "?action=products", { signal: ctl.signal });
       clearTimeout(tm);
       const d = await r.json();
-      if (!d || !d.ok || !d.managed || !Array.isArray(d.products)) return;     // not managed yet: keep products.js list
+      if (d && d.ok && !d.managed) {                                           // this script has no products yet: forget any old saved list
+        try { localStorage.removeItem(PRODUCTS_CACHE); } catch (e) { /* ignore */ }
+        setProducts(DEFAULT_PRODUCTS); refreshCatalog(); return;
+      }
+      if (!d || !d.ok || !d.managed || !Array.isArray(d.products)) return;
       setProducts(d.products);
       try { localStorage.setItem(PRODUCTS_CACHE, JSON.stringify({ managed: true, list: d.products })); } catch (e) { /* ignore */ }
       refreshCatalog();
